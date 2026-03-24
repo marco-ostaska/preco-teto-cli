@@ -50,7 +50,7 @@ def mock_get(url, *args, **kwargs):
 
 @patch("requests.get", side_effect=mock_get)
 def test_fetch_selic_returns_float(mock):
-    from radar.services.banco_central import fetch_selic
+    from preco_teto.services.banco_central import fetch_selic
     result = fetch_selic()
     assert isinstance(result, float)
     assert result > 0
@@ -58,7 +58,7 @@ def test_fetch_selic_returns_float(mock):
 
 @patch("requests.get", side_effect=mock_get)
 def test_fetch_ipca_returns_float(mock):
-    from radar.services.banco_central import fetch_ipca
+    from preco_teto.services.banco_central import fetch_ipca
     result = fetch_ipca()
     assert isinstance(result, float)
     assert result > 0
@@ -66,7 +66,7 @@ def test_fetch_ipca_returns_float(mock):
 
 @patch("requests.get", side_effect=mock_get)
 def test_fetch_juro_futuro_returns_float(mock):
-    from radar.services.tesouro import fetch_juro_futuro
+    from preco_teto.services.tesouro import fetch_juro_futuro
     result = fetch_juro_futuro()
     assert isinstance(result, float)
     assert result > 0
@@ -74,25 +74,25 @@ def test_fetch_juro_futuro_returns_float(mock):
 
 @patch("requests.get", side_effect=lambda *a, **k: (_ for _ in ()).throw(requests.ConnectionError()))
 def test_fetch_selic_returns_none_on_error(mock):
-    from radar.services.banco_central import fetch_selic
+    from preco_teto.services.banco_central import fetch_selic
     result = fetch_selic()
     assert result is None
 
 
 @patch("requests.get", side_effect=lambda *a, **k: (_ for _ in ()).throw(requests.ConnectionError()))
 def test_fetch_juro_futuro_returns_none_on_error(mock):
-    from radar.services.tesouro import fetch_juro_futuro
+    from preco_teto.services.tesouro import fetch_juro_futuro
     result = fetch_juro_futuro()
     assert result is None
 
 
 # --- IndicesBR and IndicesUS ---
 
-@patch("radar.services.banco_central.fetch_selic", return_value=13.75)
-@patch("radar.services.banco_central.fetch_ipca", return_value=4.80)
-@patch("radar.services.tesouro.fetch_juro_futuro", return_value=13.10)
+@patch("preco_teto.services.banco_central.fetch_selic", return_value=13.75)
+@patch("preco_teto.services.banco_central.fetch_ipca", return_value=4.80)
+@patch("preco_teto.services.tesouro.fetch_juro_futuro", return_value=13.10)
 def test_indices_br(mock_jf, mock_ipca, mock_selic):
-    from radar.services.referencia import IndicesBR, fetch_indices_br
+    from preco_teto.services.referencia import IndicesBR, fetch_indices_br
     idx = fetch_indices_br()
     assert isinstance(idx, IndicesBR)
     assert idx.selic == 13.75
@@ -109,7 +109,7 @@ def test_indices_us_tflo(mock_ticker_cls):
     mock_tlt.info = {"dividendYield": 0.046}
     mock_ticker_cls.side_effect = [mock_tflo, mock_tlt]
 
-    from radar.services.referencia import IndicesUS, fetch_indices_us
+    from preco_teto.services.referencia import IndicesUS, fetch_indices_us
     idx = fetch_indices_us()
     assert isinstance(idx, IndicesUS)
     assert idx.taxa_curto == pytest.approx(5.28, rel=1e-2)
@@ -128,6 +128,6 @@ def test_indices_us_fallback_bil(mock_ticker_cls):
     mock_tlt.info = {"dividendYield": 0.046}
     mock_ticker_cls.side_effect = [mock_tflo, mock_bil, mock_tlt]
 
-    from radar.services.referencia import fetch_indices_us
+    from preco_teto.services.referencia import fetch_indices_us
     idx = fetch_indices_us()
     assert idx.taxa_curto == pytest.approx(5.1, rel=1e-2)

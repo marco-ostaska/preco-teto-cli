@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import yfinance as yf
-from radar.services.banco_central import fetch_selic, fetch_ipca, melhor_indice_br
-from radar.services.tesouro import fetch_juro_futuro
+from preco_teto.services.banco_central import fetch_selic, fetch_ipca, melhor_indice_br
+from preco_teto.services.tesouro import fetch_juro_futuro
 
 CPI_US = 3.1  # hardcoded — FRED API requer chave, fora do escopo
 

@@ -13,7 +13,7 @@ def make_ticker_mock(info, income_stmt, adj_close):
 @patch("yfinance.Ticker")
 def test_br_ticker_adds_sa(mock_cls, mock_yf_info_br, mock_income_stmt, mock_adj_close):
     mock_cls.return_value = make_ticker_mock(mock_yf_info_br, mock_income_stmt, mock_adj_close)
-    from radar.services.acao import fetch_acao
+    from preco_teto.services.acao import fetch_acao
     data = fetch_acao("VALE3")
     mock_cls.assert_called_with("VALE3.SA")
 
@@ -21,7 +21,7 @@ def test_br_ticker_adds_sa(mock_cls, mock_yf_info_br, mock_income_stmt, mock_adj
 @patch("yfinance.Ticker")
 def test_us_ticker_no_sa(mock_cls, mock_yf_info_us, mock_income_stmt, mock_adj_close):
     mock_cls.return_value = make_ticker_mock(mock_yf_info_us, mock_income_stmt, mock_adj_close)
-    from radar.services.acao import fetch_acao
+    from preco_teto.services.acao import fetch_acao
     data = fetch_acao("AAPL")
     mock_cls.assert_called_with("AAPL")
 
@@ -30,7 +30,7 @@ def test_us_ticker_no_sa(mock_cls, mock_yf_info_us, mock_income_stmt, mock_adj_c
 def test_cotacao_fallback_chain(mock_cls, mock_income_stmt, mock_adj_close):
     info_no_current = {"previousClose": 57.80}
     mock_cls.return_value = make_ticker_mock(info_no_current, mock_income_stmt, mock_adj_close)
-    from radar.services.acao import fetch_acao
+    from preco_teto.services.acao import fetch_acao
     data = fetch_acao("VALE3")
     assert data.cotacao == 57.80
 
@@ -41,7 +41,7 @@ def test_cotacao_none_when_all_missing(mock_cls, mock_income_stmt, mock_adj_clos
     empty = pd.DataFrame()
     mock_cls.return_value = make_ticker_mock({}, mock_income_stmt, empty)
     mock_cls.return_value.history.return_value = empty
-    from radar.services.acao import fetch_acao
+    from preco_teto.services.acao import fetch_acao
     data = fetch_acao("VALE3")
     assert data.cotacao is None
 
@@ -49,7 +49,7 @@ def test_cotacao_none_when_all_missing(mock_cls, mock_income_stmt, mock_adj_clos
 @patch("yfinance.Ticker")
 def test_is_br_detection_br(mock_cls, mock_yf_info_br, mock_income_stmt, mock_adj_close):
     mock_cls.return_value = make_ticker_mock(mock_yf_info_br, mock_income_stmt, mock_adj_close)
-    from radar.services.acao import fetch_acao
+    from preco_teto.services.acao import fetch_acao
     data = fetch_acao("VALE3")
     assert data.is_br is True
 
@@ -57,6 +57,6 @@ def test_is_br_detection_br(mock_cls, mock_yf_info_br, mock_income_stmt, mock_ad
 @patch("yfinance.Ticker")
 def test_is_br_detection_us(mock_cls, mock_yf_info_us, mock_income_stmt, mock_adj_close):
     mock_cls.return_value = make_ticker_mock(mock_yf_info_us, mock_income_stmt, mock_adj_close)
-    from radar.services.acao import fetch_acao
+    from preco_teto.services.acao import fetch_acao
     data = fetch_acao("AAPL")
     assert data.is_br is False

@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from radar.formulas import teto_por_lucro
+from preco_teto.formulas import teto_por_lucro
 
 
 def make_income(values):
@@ -43,7 +43,7 @@ def test_teto_por_lucro_zero_range():
 
 
 # --- remaining formulas ---
-from radar.formulas import teto_por_dy, teto_bazin, teto_graham, teto_dcf
+from preco_teto.formulas import teto_por_dy, teto_bazin, teto_graham, teto_dcf
 
 
 def test_teto_por_dy_positive():

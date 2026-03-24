@@ -1,10 +1,10 @@
 from typing import Annotated
 import typer
 
-from radar.services.acao import fetch_acao
-from radar.services.fii import fetch_fii
-from radar.services.referencia import fetch_indices_br, fetch_indices_us
-from radar.formulas import (
+from preco_teto.services.acao import fetch_acao
+from preco_teto.services.fii import fetch_fii
+from preco_teto.services.referencia import fetch_indices_br, fetch_indices_us
+from preco_teto.formulas import (
     teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf
 )
 
@@ -13,12 +13,12 @@ app = typer.Typer(help="Radar de ativos — cotação e preços teto")
 
 def _get_renderer(json_flag: bool, plain_flag: bool):
     if json_flag:
-        from radar.output import json_out
+        from preco_teto.output import json_out
         return json_out
     if plain_flag:
-        from radar.output import plain
+        from preco_teto.output import plain
         return plain
-    from radar.output import tabela
+    from preco_teto.output import tabela
     return tabela
 
 
