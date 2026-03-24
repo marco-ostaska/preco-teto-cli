@@ -21,9 +21,9 @@ def render_acao(ticker, cotacao, is_br, tetos, indices):
         print(f"{label:<30} {_fmt(v, is_br):>12}  {mark}")
     print("-" * 46)
     if is_br:
-        print(f"IPCA: {indices.ipca}%  CDI: {indices.selic}%")
+        print(f"CDI: {indices.cdi}%  IPCA: {indices.ipca}%")
     else:
-        print(f"TLT: {indices.taxa_longo}%  CPI: {indices.cpi}%")
+        print(f"Fed Funds: {indices.fed_funds}%  CPI: {indices.cpi}%")
 
 
 def render_fii(ticker, cotacao, tetos, indices):
@@ -35,12 +35,6 @@ def render_fii(ticker, cotacao, tetos, indices):
         print(f"{label:<30} {_fmt(v, True):>12}  {mark}")
 
 
-def render_indices(br, us):
-    print("BR")
-    print(f"  CDI:         {br.selic}%")
-    print(f"  IPCA:        {br.ipca}%")
-    print(f"  Juro Futuro: {br.juro_futuro}%")
-    print("US")
-    print(f"  TFLO:  {us.taxa_curto}%")
-    print(f"  TLT:   {us.taxa_longo}%")
-    print(f"  CPI:   {us.cpi}%")
+def render_indices(br):
+    print(f"CDI:   {br.cdi}%")
+    print(f"IPCA:  {br.ipca}%")

@@ -23,8 +23,8 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices):
 
     labels = {
         "teto_por_lucro": "Teto por Lucro  (heurística)",
-        "teto_por_dy":    "Teto por DY     (heurística)",
-        "teto_bazin":     f"Teto Bazin      ({'CDI dinâmico' if is_br else 'TFLO dinâmico'})",
+        "teto_por_dy":    "Teto por DY     (DY médio 3a)",
+        "teto_bazin":     f"Teto Bazin      ({'CDI dinâmico' if is_br else 'Fed Funds dinâmico'})",
         "teto_graham":    "Teto Graham     (LPA×VPA)",
         "teto_dcf":       "Teto DCF        (FCL/CAPM)",
     }
@@ -34,14 +34,9 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices):
     console.print(t)
 
     if is_br:
-        console.print(
-            f"IPCA: {indices.ipca}%   CDI: {indices.selic}%"
-            + (f"   Juro Futuro: {indices.juro_futuro}%" if indices.juro_futuro else "")
-        )
+        console.print(f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%")
     else:
-        console.print(
-            f"TLT Yield (20yr): {indices.taxa_longo}%   CPI: {indices.cpi}%"
-        )
+        console.print(f"Fed Funds: {indices.fed_funds}%   CPI: {indices.cpi}%")
 
 
 def render_fii(ticker, cotacao, tetos: dict, indices):
@@ -52,17 +47,13 @@ def render_fii(ticker, cotacao, tetos: dict, indices):
     t.add_row(*_teto_row("Teto por DY  (heurística)", tetos.get("teto_por_dy"), cotacao))
     t.add_row(*_teto_row("VPA", tetos.get("vpa"), cotacao))
     console.print(t)
-    console.print(f"IPCA: {indices.ipca}%   CDI: {indices.selic}%")
+    console.print(f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%")
 
 
-def render_indices(br, us):
-    t = Table(title="Índices de Referência", box=box.SIMPLE_HEAVY)
+def render_indices(br):
+    t = Table(title="Índices de Referência BR", box=box.SIMPLE_HEAVY)
     t.add_column("Índice")
     t.add_column("Valor", justify="right")
-    t.add_row("CDI (SELIC)", f"{br.selic}%" if br.selic else "—")
+    t.add_row("CDI", f"{br.cdi}%" if br.cdi else "—")
     t.add_row("IPCA (12m)", f"{br.ipca}%" if br.ipca else "—")
-    t.add_row("Juro Futuro Pré ~2yr", f"{br.juro_futuro}%" if br.juro_futuro else "—")
-    t.add_row("TFLO Yield (curto)", f"{us.taxa_curto}%" if us.taxa_curto else "—")
-    t.add_row("TLT Yield (20yr)", f"{us.taxa_longo}%" if us.taxa_longo else "—")
-    t.add_row("CPI (US)", f"{us.cpi}%")
     console.print(t)
