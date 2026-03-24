@@ -1,46 +1,29 @@
 from dataclasses import dataclass
-import yfinance as yf
-from preco_teto.services.banco_central import fetch_selic, fetch_ipca, melhor_indice_br
-from preco_teto.services.tesouro import fetch_juro_futuro
+from preco_teto.services.banco_central import fetch_cdi, fetch_ipca, melhor_indice_br
 
-CPI_US = 3.1  # hardcoded — FRED API requer chave, fora do escopo
+FED_FUNDS_US = 5.25  # atualizar manualmente quando Fed mudar
+CPI_US = 3.1         # atualizar manualmente quando necessário
 
 
 @dataclass
 class IndicesBR:
-    selic: float | None
+    cdi: float | None
     ipca: float | None
-    juro_futuro: float | None
-    melhor_indice: float | None  # max(selic_liq, ipca_ganho_real)
+    melhor_indice: float | None  # max(cdi * 0.85, ipca + 2.0)
 
 
 @dataclass
 class IndicesUS:
-    taxa_curto: float | None   # TFLO ou BIL
-    taxa_longo: float | None   # TLT (informativo)
-    cpi: float = CPI_US
+    fed_funds: float
+    cpi: float
 
 
 def fetch_indices_br() -> IndicesBR:
-    selic = fetch_selic()
+    cdi = fetch_cdi()
     ipca = fetch_ipca()
-    juro_futuro = fetch_juro_futuro()
-    melhor = melhor_indice_br(selic, ipca)
-    return IndicesBR(selic=selic, ipca=ipca, juro_futuro=juro_futuro, melhor_indice=melhor)
-
-
-def _yf_dividend_yield(ticker: str) -> float | None:
-    try:
-        info = yf.Ticker(ticker).info
-        dy = info.get("dividendYield")
-        return round(dy * 100, 4) if dy else None
-    except Exception:
-        return None
+    melhor = melhor_indice_br(cdi, ipca)
+    return IndicesBR(cdi=cdi, ipca=ipca, melhor_indice=melhor)
 
 
 def fetch_indices_us() -> IndicesUS:
-    taxa_curto = _yf_dividend_yield("TFLO")
-    if taxa_curto is None:
-        taxa_curto = _yf_dividend_yield("BIL")
-    taxa_longo = _yf_dividend_yield("TLT")
-    return IndicesUS(taxa_curto=taxa_curto, taxa_longo=taxa_longo)
+    return IndicesUS(fed_funds=FED_FUNDS_US, cpi=CPI_US)

@@ -13,8 +13,8 @@ def _bcb_url(codigo_serie: int, anos: int = 1) -> str:
     )
 
 
-def fetch_selic() -> float | None:
-    """Taxa SELIC anualizada atual (última observação). Retorna % (ex: 13.75)."""
+def fetch_cdi() -> float | None:
+    """Taxa CDI anualizada atual (última observação, série 11 BCB). Retorna % (ex: 14.65)."""
     try:
         resp = requests.get(_bcb_url(11, anos=1), timeout=10)
         resp.raise_for_status()
@@ -37,12 +37,12 @@ def fetch_ipca() -> float | None:
         return None
 
 
-def melhor_indice_br(selic: float | None, ipca: float | None) -> float | None:
-    """Retorna max(selic_liquida, ipca_ganho_real). Usado em teto_por_dy e teto_bazin BR."""
+def melhor_indice_br(cdi: float | None, ipca: float | None) -> float | None:
+    """Retorna max(cdi_liquido, ipca_ganho_real). Usado em teto_por_dy e teto_bazin BR."""
     try:
-        selic_liq = selic * 0.85 if selic else None
+        cdi_liq = cdi * 0.85 if cdi else None
         ipca_real = (ipca + 2.0) if ipca else None
-        candidates = [x for x in [selic_liq, ipca_real] if x is not None]
+        candidates = [x for x in [cdi_liq, ipca_real] if x is not None]
         return max(candidates) if candidates else None
     except Exception:
         return None

@@ -34,13 +34,13 @@ def acao(
     if data.is_br:
         idx = fetch_indices_br()
         indice_base = idx.melhor_indice
-        taxa_livre = idx.selic
+        taxa_livre = idx.cdi
         premio = 5.5
         inflacao = idx.ipca or 4.8
     else:
         idx = fetch_indices_us()
-        indice_base = idx.taxa_curto
-        taxa_livre = idx.taxa_curto
+        indice_base = idx.fed_funds
+        taxa_livre = idx.fed_funds
         premio = 5.0
         inflacao = idx.cpi
 
