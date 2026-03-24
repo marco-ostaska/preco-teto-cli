@@ -1,4 +1,4 @@
-# radar-cli
+# preco-teto
 
 CLI para cotação e preços teto de ações (BR/US) e FIIs.
 
@@ -13,14 +13,14 @@ uv sync
 ## Uso
 
 ```bash
-uv run radar acao VALE3
-uv run radar acao AAPL
-uv run radar fii HGLG11
-uv run radar indices
+uv run preco-teto VALE3      # ação BR
+uv run preco-teto AAPL       # ação US
+uv run preco-teto HGLG11     # FII (detectado automaticamente)
+uv run preco-teto indices    # CDI e IPCA atuais
 
 # Flags de output
-uv run radar acao VALE3 --json
-uv run radar acao VALE3 --plain
+uv run preco-teto VALE3 --json
+uv run preco-teto VALE3 --plain
 ```
 
 ## Testes
