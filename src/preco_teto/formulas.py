@@ -51,12 +51,16 @@ def teto_por_lucro(
         return None
 
 
-def teto_por_dy(cotacao: float, dy_estimado: float, indice_base: float) -> float | None:
-    """teto = (dy_estimado * cotacao) / (indice_base / 100)"""
+def teto_por_dy(dividendo_anual: float | None, indice_base: float) -> float | None:
+    """
+    teto = dividendo_anual_medio / (indice_base / 100)
+    dividendo_anual: média dos últimos 1-3 anos de dividendos pagos (R$ ou $)
+    indice_base: melhor_indice BR ou FED_FUNDS_US, em % (ex: 11.69)
+    """
     try:
-        if not dy_estimado:
+        if not dividendo_anual or not indice_base:
             return None
-        return round(dy_estimado * cotacao / (indice_base / 100), 2)
+        return round(dividendo_anual / (indice_base / 100), 2)
     except Exception:
         return None
 

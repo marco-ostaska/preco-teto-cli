@@ -46,7 +46,7 @@ def acao(
 
     tetos = {
         "teto_por_lucro": teto_por_lucro(data.income_net, data.year_prices, data.previous_close or data.cotacao or 0),
-        "teto_por_dy": teto_por_dy(data.cotacao, data.dy_estimado, indice_base) if data.cotacao else None,
+        "teto_por_dy": teto_por_dy(data.dividendo_medio, indice_base),
         "teto_bazin": teto_bazin(data.dividend_rate, indice_base),
         "teto_graham": teto_graham(data.lpa, data.vpa),
         "teto_dcf": teto_dcf(
@@ -71,7 +71,10 @@ def fii(
     indice_base = idx.melhor_indice
 
     tetos = {
-        "teto_por_dy": teto_por_dy(data.cotacao, (data.dividend_yield / 100) if data.dividend_yield else None, indice_base) if data.cotacao else None,
+        "teto_por_dy": teto_por_dy(
+            (data.cotacao * data.dividend_yield / 100) if (data.cotacao and data.dividend_yield) else None,
+            indice_base,
+        ),
         "vpa": data.vpa,
     }
 

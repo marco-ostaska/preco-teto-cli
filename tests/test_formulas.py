@@ -46,14 +46,19 @@ def test_teto_por_lucro_zero_range():
 from preco_teto.formulas import teto_por_dy, teto_bazin, teto_graham, teto_dcf
 
 
-def test_teto_por_dy_positive():
-    result = teto_por_dy(cotacao=50.0, dy_estimado=0.06, indice_base=13.75)
-    assert result == pytest.approx(50.0 * 0.06 / 0.1375, rel=1e-3)
+def test_teto_por_dy_usa_dividendo_medio():
+    """teto_por_dy agora recebe dividendo_anual direto (não cotacao * dy)."""
+    # dividendo_medio = 14.40, indice_base = 11.69%
+    resultado = teto_por_dy(14.40, 11.69)
+    assert resultado == pytest.approx(14.40 / 0.1169, rel=1e-2)
 
 
-def test_teto_por_dy_zero_dy():
-    result = teto_por_dy(cotacao=50.0, dy_estimado=0.0, indice_base=13.75)
-    assert result is None
+def test_teto_por_dy_none_se_dividendo_none():
+    assert teto_por_dy(None, 11.69) is None
+
+
+def test_teto_por_dy_none_se_taxa_zero():
+    assert teto_por_dy(14.40, 0) is None
 
 
 def test_teto_bazin_positive():
