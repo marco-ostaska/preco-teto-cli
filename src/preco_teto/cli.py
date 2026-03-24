@@ -8,7 +8,7 @@ from preco_teto.formulas import (
     teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf
 )
 
-app = typer.Typer(help="Radar de ativos — cotação e preços teto")
+app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs")
 
 
 def _get_renderer(json_flag: bool, plain_flag: bool):
@@ -22,15 +22,50 @@ def _get_renderer(json_flag: bool, plain_flag: bool):
     return tabela
 
 
+def _todos_none(tetos: dict) -> bool:
+    return all(v is None for v in tetos.values())
+
+
+def _is_fii(ticker: str) -> bool:
+    return ticker.endswith("11")
+
+
 @app.command()
-def acao(
+def main(
     ticker: str,
     json: Annotated[bool, typer.Option("--json")] = False,
     plain: Annotated[bool, typer.Option("--plain")] = False,
 ):
-    """Consulta cotação e preços teto de uma ação (BR ou US)."""
-    data = fetch_acao(ticker)
+    """Consulta preço teto de um ativo (ação BR/US ou FII). Use 'indices' para ver CDI e IPCA."""
+    ticker = ticker.upper()
 
+    if ticker == "INDICES":
+        _indices(json=json, plain=plain)
+        return
+
+    renderer = _get_renderer(json, plain)
+
+    # Tenta como FII se termina em 11
+    if _is_fii(ticker):
+        try:
+            data = fetch_fii(ticker)
+            idx = fetch_indices_br()
+            indice_base = idx.melhor_indice
+            div_anual = (data.cotacao * data.dividend_yield / 100) if data.dividend_yield and data.cotacao else None
+            tetos = {
+                "teto_por_dy": teto_por_dy(div_anual, indice_base) if data.cotacao else None,
+                "vpa": data.vpa,
+            }
+            if _todos_none(tetos):
+                typer.echo(f"{ticker} — cálculo de preço teto não disponível para este ativo.")
+                return
+            renderer.render_fii(data.ticker, data.cotacao, tetos, idx)
+            return
+        except Exception:
+            pass  # fallback para ação BR
+
+    # Ação BR ou US
+    data = fetch_acao(ticker)
     if data.is_br:
         idx = fetch_indices_br()
         indice_base = idx.melhor_indice
@@ -46,7 +81,7 @@ def acao(
 
     tetos = {
         "teto_por_lucro": teto_por_lucro(data.income_net, data.year_prices, data.previous_close or data.cotacao or 0),
-        "teto_por_dy": teto_por_dy(data.dividendo_medio, indice_base),
+        "teto_por_dy": teto_por_dy(data.dividendo_medio, indice_base) if data.dividendo_medio else None,
         "teto_bazin": teto_bazin(data.dividend_rate, indice_base),
         "teto_graham": teto_graham(data.lpa, data.vpa),
         "teto_dcf": teto_dcf(
@@ -55,40 +90,28 @@ def acao(
         ),
     }
 
-    renderer = _get_renderer(json, plain)
+    if _todos_none(tetos):
+        typer.echo(f"{ticker} — cálculo de preço teto não disponível para este ativo.")
+        return
+
     renderer.render_acao(data.ticker, data.cotacao, data.is_br, tetos, idx)
 
 
-@app.command()
-def fii(
-    ticker: str,
-    json: Annotated[bool, typer.Option("--json")] = False,
-    plain: Annotated[bool, typer.Option("--plain")] = False,
+def _indices(
+    json: bool = False,
+    plain: bool = False,
 ):
-    """Consulta cotação e preços teto de um FII."""
-    data = fetch_fii(ticker)
-    idx = fetch_indices_br()
-    indice_base = idx.melhor_indice
-
-    tetos = {
-        "teto_por_dy": teto_por_dy(
-            (data.cotacao * data.dividend_yield / 100) if (data.cotacao and data.dividend_yield) else None,
-            indice_base,
-        ),
-        "vpa": data.vpa,
-    }
-
-    renderer = _get_renderer(json, plain)
-    renderer.render_fii(data.ticker, data.cotacao, tetos, idx)
-
-
-@app.command()
-def indices(
-    json: Annotated[bool, typer.Option("--json")] = False,
-    plain: Annotated[bool, typer.Option("--plain")] = False,
-):
-    """Exibe índices de referência BR e US."""
+    """Exibe índices de referência BR (CDI e IPCA)."""
     br = fetch_indices_br()
-    us = fetch_indices_us()
     renderer = _get_renderer(json, plain)
-    renderer.render_indices(br, us)
+    renderer.render_indices(br)
+
+
+# Expor indices como subcomando também
+@app.command(name="indices")
+def indices_cmd(
+    json: Annotated[bool, typer.Option("--json")] = False,
+    plain: Annotated[bool, typer.Option("--plain")] = False,
+):
+    """Exibe CDI e IPCA atuais."""
+    _indices(json=json, plain=plain)
