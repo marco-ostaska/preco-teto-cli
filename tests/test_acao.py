@@ -60,3 +60,47 @@ def test_is_br_detection_us(mock_cls, mock_yf_info_us, mock_income_stmt, mock_ad
     from preco_teto.services.acao import fetch_acao
     data = fetch_acao("AAPL")
     assert data.is_br is False
+
+
+def test_dy_medio_3y(mock_dividends_3y, mock_yf_info_br, mock_adj_close, mocker):
+    """dy_medio deve usar média dos 3 anos completos mais recentes."""
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = mock_yf_info_br
+    mock_ticker.history.return_value = mock_adj_close
+    mock_ticker.income_stmt = None
+    mock_ticker.dividends = mock_dividends_3y
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.acao import fetch_acao
+    data = fetch_acao("VALE3")
+    # média de 12.00, 14.40, 16.80 = 14.40
+    assert data.dividendo_medio == pytest.approx(14.40, rel=1e-2)
+
+
+def test_dy_medio_fallback_sem_historico(mock_dividends_empty, mock_yf_info_br, mock_adj_close, mocker):
+    """Sem histórico, dy_medio usa dividendRate do info."""
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = mock_yf_info_br  # dividendRate = 3.60
+    mock_ticker.history.return_value = mock_adj_close
+    mock_ticker.income_stmt = None
+    mock_ticker.dividends = mock_dividends_empty
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.acao import fetch_acao
+    data = fetch_acao("VALE3")
+    assert data.dividendo_medio == pytest.approx(3.60, rel=1e-2)
+
+
+def test_todos_tetos_none_sem_dados(mocker):
+    """Ativo sem dados suficientes retorna dividendo_medio None."""
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = {}
+    mock_ticker.history.return_value = __import__("pandas").DataFrame()
+    mock_ticker.income_stmt = None
+    mock_ticker.dividends = __import__("pandas").Series([], dtype=float)
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.acao import fetch_acao
+    data = fetch_acao("IAU")
+    assert data.dividendo_medio is None
+    assert data.cotacao is None

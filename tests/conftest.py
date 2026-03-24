@@ -99,3 +99,30 @@ def mock_dividends_series():
     vals = [1.20, 1.18, 1.15, 1.30, 1.28, 1.25, 1.22, 1.20, 1.18, 1.16, 1.14, 1.12]
     dates = pd.date_range("2023-01-01", periods=12, freq="MS")
     return pd.Series(vals[::-1], index=dates[::-1])  # newest first
+
+
+@pytest.fixture
+def mock_dividends_3y():
+    """Dividendos mensais cobrindo 3 anos completos (2021, 2022, 2023)."""
+    dates = pd.date_range("2021-01-15", periods=36, freq="30D")
+    # 2021: ~1.00/mês, 2022: ~1.20/mês, 2023: ~1.40/mês
+    vals = (
+        [1.00] * 12 +  # 2021: total 12.00
+        [1.20] * 12 +  # 2022: total 14.40
+        [1.40] * 12    # 2023: total 16.80
+    )
+    return pd.Series(vals, index=dates)
+
+
+@pytest.fixture
+def mock_dividends_1y():
+    """Dividendos cobrindo apenas 1 ano completo (2023)."""
+    dates = pd.date_range("2023-01-15", periods=12, freq="MS")
+    vals = [1.40] * 12  # 2023: total 16.80
+    return pd.Series(vals, index=dates)
+
+
+@pytest.fixture
+def mock_dividends_empty():
+    """Sem histórico de dividendos."""
+    return pd.Series([], dtype=float)

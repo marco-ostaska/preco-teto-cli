@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 import pandas as pd
 import yfinance as yf
 from scipy.stats import trim_mean
@@ -36,13 +37,34 @@ def _year_prices(history: pd.DataFrame) -> dict[int, float]:
     return result
 
 
+def _dividendo_medio(dividends: pd.Series, dividend_rate: float | None) -> float | None:
+    """
+    Calcula dividendo anual médio dos últimos 3 anos completos.
+    Fallback: dividend_rate do yfinance se sem histórico completo.
+    """
+    try:
+        if dividends is None or dividends.empty:
+            return dividend_rate or None
+        dividends = dividends.copy()
+        dividends.index = pd.to_datetime(dividends.index)
+        ano_atual = datetime.now().year
+        por_ano = dividends.groupby(dividends.index.year).sum()
+        anos_completos = por_ano[por_ano.index < ano_atual]
+        if anos_completos.empty:
+            return dividend_rate or None
+        ultimos = anos_completos.tail(3)
+        return round(float(ultimos.mean()), 4)
+    except Exception:
+        return dividend_rate or None
+
+
 @dataclass
 class AcaoData:
     ticker: str
     is_br: bool
     cotacao: float | None
     dividend_rate: float | None
-    dy_estimado: float | None
+    dividendo_medio: float | None   # média anual 3 anos (ou fallback dividend_rate)
     lpa: float | None
     vpa: float | None
     free_cashflow: float | None
@@ -50,7 +72,7 @@ class AcaoData:
     beta: float | None
     earnings_growth: float | None
     revenue_growth: float | None
-    income_net: pd.Series = field(repr=False, default=None)  # Net Income series
+    income_net: pd.Series = field(repr=False, default=None)
     year_prices: dict = field(repr=False, default_factory=dict)
     previous_close: float | None = None
 
@@ -67,7 +89,6 @@ def fetch_acao(ticker: str) -> AcaoData:
     cotacao = _get_cotacao(info, history)
     year_px = _year_prices(history)
 
-    # Net Income series from income_stmt
     income_net = None
     try:
         stmt = t.income_stmt
@@ -76,16 +97,21 @@ def fetch_acao(ticker: str) -> AcaoData:
     except Exception:
         pass
 
-    dy_estimado = None
-    if info.get("dividendRate") and cotacao:
-        dy_estimado = info["dividendRate"] / cotacao
+    dividends = None
+    try:
+        dividends = t.dividends
+    except Exception:
+        pass
+
+    dividend_rate = info.get("dividendRate")
+    div_medio = _dividendo_medio(dividends, dividend_rate)
 
     return AcaoData(
         ticker=ticker,
         is_br=is_br,
         cotacao=cotacao,
-        dividend_rate=info.get("dividendRate"),
-        dy_estimado=dy_estimado,
+        dividend_rate=dividend_rate,
+        dividendo_medio=div_medio,
         lpa=info.get("trailingEps"),
         vpa=info.get("bookValue"),
         free_cashflow=info.get("freeCashflow"),
