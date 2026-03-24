@@ -8,7 +8,7 @@ from preco_teto.formulas import (
     teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf
 )
 
-app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs")
+app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
 
 
 def _get_renderer(json_flag: bool, plain_flag: bool):
@@ -105,13 +105,3 @@ def _indices(
     br = fetch_indices_br()
     renderer = _get_renderer(json, plain)
     renderer.render_indices(br)
-
-
-# Expor indices como subcomando também
-@app.command(name="indices")
-def indices_cmd(
-    json: Annotated[bool, typer.Option("--json")] = False,
-    plain: Annotated[bool, typer.Option("--plain")] = False,
-):
-    """Exibe CDI e IPCA atuais."""
-    _indices(json=json, plain=plain)
