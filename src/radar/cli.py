@@ -1,18 +1,91 @@
+from typing import Annotated
 import typer
 
-app = typer.Typer()
+from radar.services.acao import fetch_acao
+from radar.services.fii import fetch_fii
+from radar.services.referencia import fetch_indices_br, fetch_indices_us
+from radar.formulas import (
+    teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf
+)
+
+app = typer.Typer(help="Radar de ativos — cotação e preços teto")
+
+
+def _get_renderer(json_flag: bool, plain_flag: bool):
+    if json_flag:
+        from radar.output import json_out
+        return json_out
+    if plain_flag:
+        from radar.output import plain
+        return plain
+    from radar.output import tabela
+    return tabela
+
 
 @app.command()
-def acao(ticker: str, json: bool = False, plain: bool = False):
-    """Consulta cotação e preços teto de uma ação."""
-    typer.echo(f"acao {ticker}")
+def acao(
+    ticker: str,
+    json: Annotated[bool, typer.Option("--json")] = False,
+    plain: Annotated[bool, typer.Option("--plain")] = False,
+):
+    """Consulta cotação e preços teto de uma ação (BR ou US)."""
+    data = fetch_acao(ticker)
+
+    if data.is_br:
+        idx = fetch_indices_br()
+        indice_base = idx.melhor_indice
+        taxa_livre = idx.selic
+        premio = 5.5
+        inflacao = idx.ipca or 4.8
+    else:
+        idx = fetch_indices_us()
+        indice_base = idx.taxa_curto
+        taxa_livre = idx.taxa_curto
+        premio = 5.0
+        inflacao = idx.cpi
+
+    tetos = {
+        "teto_por_lucro": teto_por_lucro(data.income_net, data.year_prices, data.previous_close or data.cotacao or 0),
+        "teto_por_dy": teto_por_dy(data.cotacao, data.dy_estimado, indice_base) if data.cotacao else None,
+        "teto_bazin": teto_bazin(data.dividend_rate, indice_base),
+        "teto_graham": teto_graham(data.lpa, data.vpa),
+        "teto_dcf": teto_dcf(
+            data.free_cashflow, data.shares_outstanding, data.beta,
+            data.earnings_growth, taxa_livre or 0, premio, inflacao
+        ),
+    }
+
+    renderer = _get_renderer(json, plain)
+    renderer.render_acao(data.ticker, data.cotacao, data.is_br, tetos, idx)
+
 
 @app.command()
-def fii(ticker: str, json: bool = False, plain: bool = False):
+def fii(
+    ticker: str,
+    json: Annotated[bool, typer.Option("--json")] = False,
+    plain: Annotated[bool, typer.Option("--plain")] = False,
+):
     """Consulta cotação e preços teto de um FII."""
-    typer.echo(f"fii {ticker}")
+    data = fetch_fii(ticker)
+    idx = fetch_indices_br()
+    indice_base = idx.melhor_indice
+
+    tetos = {
+        "teto_por_dy": teto_por_dy(data.cotacao, (data.dividend_yield / 100) if data.dividend_yield else None, indice_base) if data.cotacao else None,
+        "vpa": data.vpa,
+    }
+
+    renderer = _get_renderer(json, plain)
+    renderer.render_fii(data.ticker, data.cotacao, tetos, idx)
+
 
 @app.command()
-def indices():
+def indices(
+    json: Annotated[bool, typer.Option("--json")] = False,
+    plain: Annotated[bool, typer.Option("--plain")] = False,
+):
     """Exibe índices de referência BR e US."""
-    typer.echo("indices")
+    br = fetch_indices_br()
+    us = fetch_indices_us()
+    renderer = _get_renderer(json, plain)
+    renderer.render_indices(br, us)
