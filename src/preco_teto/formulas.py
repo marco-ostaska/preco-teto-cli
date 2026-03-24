@@ -118,3 +118,41 @@ def teto_dcf(
         return round(fluxos + vt_presente, 2)
     except Exception:
         return None
+
+
+def teto_margem(cotacao: float | None, low_52: float | None, high_52: float | None) -> float | None:
+    """
+    Teto baseado em margem de segurança 52 semanas.
+    margem = (cotacao - low) / (high - low)
+    se margem > 0.5: teto = low + range * (1 - margem^margem)
+    caso contrário:  teto = low + range * (margem^(1-margem))
+    """
+    try:
+        if cotacao is None or low_52 is None or high_52 is None:
+            return None
+        rng = high_52 - low_52
+        if rng == 0:
+            return None
+        margem = (cotacao - low_52) / rng
+        if margem > 0.5:
+            teto = low_52 + rng * (1 - margem ** margem)
+        else:
+            teto = low_52 + rng * (margem ** (1 - margem))
+        return round(teto, 2)
+    except Exception:
+        return None
+
+
+def termometro_margem(margem: float | None) -> str | None:
+    """Classifica a margem de segurança em categorias qualitativas."""
+    if margem is None:
+        return None
+    if margem < 0.25:
+        return "Pessimista"
+    if margem < 0.40:
+        return "Barata"
+    if margem < 0.75:
+        return "Neutro"
+    if margem < 0.90:
+        return "Otimista"
+    return "Euforia"

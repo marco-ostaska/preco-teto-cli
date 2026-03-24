@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 from dataclasses import dataclass
+import yfinance as yf
 
 
 class FiisComService:
@@ -98,6 +99,8 @@ class FiiData:
     pvp: float | None
     dividend_yield: float | None   # percentual (ex: 17.01 = 17.01%) — formato direto do HTML
     dividendo_estimado: float | None  # R$/ano estimado (não percentual)
+    low_52: float | None = None
+    high_52: float | None = None
 
 
 def fetch_fii(ticker: str) -> FiiData:
@@ -106,6 +109,16 @@ def fetch_fii(ticker: str) -> FiiData:
     cotacao = svc.cotacao
     vpa = svc.vpa
     pvp = round(cotacao / vpa, 2) if cotacao and vpa else None
+
+    low_52 = None
+    high_52 = None
+    try:
+        yf_info = yf.Ticker(f"{ticker}.SA").info or {}
+        low_52 = yf_info.get("fiftyTwoWeekLow")
+        high_52 = yf_info.get("fiftyTwoWeekHigh")
+    except Exception:
+        pass
+
     return FiiData(
         ticker=ticker,
         cotacao=cotacao,
@@ -113,4 +126,6 @@ def fetch_fii(ticker: str) -> FiiData:
         pvp=pvp,
         dividend_yield=svc.dividend_yield,
         dividendo_estimado=svc.dividendo_estimado,
+        low_52=low_52,
+        high_52=high_52,
     )

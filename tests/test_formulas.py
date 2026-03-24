@@ -43,7 +43,7 @@ def test_teto_por_lucro_zero_range():
 
 
 # --- remaining formulas ---
-from preco_teto.formulas import teto_por_dy, teto_bazin, teto_graham, teto_dcf
+from preco_teto.formulas import teto_por_dy, teto_bazin, teto_graham, teto_dcf, teto_margem, termometro_margem
 
 
 def test_teto_por_dy_usa_dividendo_medio():
@@ -144,3 +144,36 @@ def test_teto_dcf_growth_clamp_low():
     r1 = teto_dcf(1e9, 5e8, 1.0, -0.20, 13.75, 5.5, 4.8)
     r2 = teto_dcf(1e9, 5e8, 1.0, -0.99, 13.75, 5.5, 4.8)
     assert r1 == pytest.approx(r2, rel=1e-6)
+
+
+def test_teto_margem_abaixo_meio():
+    """margem <= 0.5: teto = low + range * margem^(1-margem)"""
+    resultado = teto_margem(cotacao=30.0, low_52=20.0, high_52=60.0)
+    margem = (30.0 - 20.0) / (60.0 - 20.0)  # 0.25
+    esperado = round(20.0 + 40.0 * (0.25 ** (1 - 0.25)), 2)
+    assert resultado == pytest.approx(esperado, rel=1e-3)
+
+
+def test_teto_margem_acima_meio():
+    """margem > 0.5: teto = low + range * (1 - margem^margem)"""
+    resultado = teto_margem(cotacao=50.0, low_52=20.0, high_52=60.0)
+    margem = (50.0 - 20.0) / (60.0 - 20.0)  # 0.75
+    esperado = round(20.0 + 40.0 * (1 - 0.75 ** 0.75), 2)
+    assert resultado == pytest.approx(esperado, rel=1e-3)
+
+
+def test_teto_margem_none_se_range_zero():
+    assert teto_margem(cotacao=30.0, low_52=30.0, high_52=30.0) is None
+
+
+def test_teto_margem_none_se_none():
+    assert teto_margem(cotacao=None, low_52=20.0, high_52=60.0) is None
+
+
+def test_termometro_margem():
+    assert termometro_margem(0.10) == "Pessimista"
+    assert termometro_margem(0.30) == "Barata"
+    assert termometro_margem(0.55) == "Neutro"
+    assert termometro_margem(0.80) == "Otimista"
+    assert termometro_margem(0.95) == "Euforia"
+    assert termometro_margem(None) is None

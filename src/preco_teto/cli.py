@@ -5,7 +5,8 @@ from preco_teto.services.acao import fetch_acao
 from preco_teto.services.fii import fetch_fii
 from preco_teto.services.referencia import fetch_indices_br, fetch_indices_us
 from preco_teto.formulas import (
-    teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf
+    teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf,
+    teto_margem, termometro_margem
 )
 
 app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
@@ -55,11 +56,18 @@ def main(
             tetos = {
                 "teto_por_dy": teto_por_dy(div_anual, indice_base) if data.cotacao else None,
                 "vpa": data.vpa,
+                "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
             }
             if _todos_none(tetos):
                 typer.echo(f"{ticker} — cálculo de preço teto não disponível para este ativo.")
                 return
-            renderer.render_fii(data.ticker, data.cotacao, tetos, idx)
+            _margem_val = (
+                (data.cotacao - data.low_52) / (data.high_52 - data.low_52)
+                if data.cotacao and data.low_52 and data.high_52 and (data.high_52 - data.low_52) != 0
+                else None
+            )
+            termometro = termometro_margem(_margem_val)
+            renderer.render_fii(data.ticker, data.cotacao, tetos, idx, termometro=termometro)
             return
         except Exception:
             pass  # fallback para ação BR
@@ -88,13 +96,20 @@ def main(
             data.free_cashflow, data.shares_outstanding, data.beta,
             data.earnings_growth, taxa_livre or 0, premio, inflacao
         ),
+        "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
     }
 
     if _todos_none(tetos):
         typer.echo(f"{ticker} — cálculo de preço teto não disponível para este ativo.")
         return
 
-    renderer.render_acao(data.ticker, data.cotacao, data.is_br, tetos, idx)
+    _margem_val = (
+        (data.cotacao - data.low_52) / (data.high_52 - data.low_52)
+        if data.cotacao and data.low_52 and data.high_52 and (data.high_52 - data.low_52) != 0
+        else None
+    )
+    termometro = termometro_margem(_margem_val)
+    renderer.render_acao(data.ticker, data.cotacao, data.is_br, tetos, idx, termometro=termometro)
 
 
 def _indices(

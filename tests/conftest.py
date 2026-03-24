@@ -17,6 +17,8 @@ def mock_yf_info_br():
         "beta": 0.95,
         "earningsGrowth": 0.12,
         "revenueGrowth": 0.08,
+        "fiftyTwoWeekLow": 20.0,
+        "fiftyTwoWeekHigh": 60.0,
     }
 
 
@@ -33,6 +35,8 @@ def mock_yf_info_us():
         "sharesOutstanding": 15_500_000_000,
         "beta": 1.2,
         "earningsGrowth": 0.09,
+        "fiftyTwoWeekLow": 150.0,
+        "fiftyTwoWeekHigh": 220.0,
     }
 
 

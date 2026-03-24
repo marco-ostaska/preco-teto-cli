@@ -1,12 +1,13 @@
 import json
 
 
-def render_acao(ticker, cotacao, is_br, tetos, indices):
+def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None):
     print(json.dumps({
         "ticker": ticker,
         "cotacao": cotacao,
         "is_br": is_br,
         "tetos": tetos,
+        "termometro": termometro,
         "indices": {
             "cdi": getattr(indices, "cdi", None),
             "ipca": getattr(indices, "ipca", None),
@@ -14,11 +15,12 @@ def render_acao(ticker, cotacao, is_br, tetos, indices):
     }, indent=2, ensure_ascii=False))
 
 
-def render_fii(ticker, cotacao, tetos, indices):
+def render_fii(ticker, cotacao, tetos, indices, termometro=None):
     print(json.dumps({
         "ticker": ticker,
         "cotacao": cotacao,
         "tetos": tetos,
+        "termometro": termometro,
         "indices": {"cdi": indices.cdi, "ipca": indices.ipca},
     }, indent=2, ensure_ascii=False))
 

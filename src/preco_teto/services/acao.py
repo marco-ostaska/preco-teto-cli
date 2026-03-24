@@ -75,6 +75,8 @@ class AcaoData:
     income_net: pd.Series = field(repr=False, default=None)
     year_prices: dict = field(repr=False, default_factory=dict)
     previous_close: float | None = None
+    low_52: float | None = None
+    high_52: float | None = None
 
 
 def fetch_acao(ticker: str) -> AcaoData:
@@ -122,4 +124,6 @@ def fetch_acao(ticker: str) -> AcaoData:
         income_net=income_net,
         year_prices=year_px,
         previous_close=info.get("previousClose") or info.get("regularMarketPreviousClose"),
+        low_52=info.get("fiftyTwoWeekLow"),
+        high_52=info.get("fiftyTwoWeekHigh"),
     )
