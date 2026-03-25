@@ -7,3 +7,9 @@ dist/
 *.egg-info/
 .pytest_cache/
 CLAUDE.md
+docs/superpowers/plans/2026-03-25-fundos-analise-resumo.md
+docs/superpowers/plans/2026-03-25-fundos-benchmark-explicito.md
+docs/superpowers/plans/2026-03-25-fundos-cdi-liquido.md
+docs/superpowers/plans/2026-03-25-fundos-progress-messages.md
+docs/superpowers/specs/2026-03-25-fundos-analise-resumo-design.md
+docs/superpowers/specs/2026-03-25-fundos-benchmark-explicito-design.md
