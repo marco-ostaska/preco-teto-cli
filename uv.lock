@@ -478,6 +478,7 @@ source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "pandas" },
+    { name = "python-dateutil" },
     { name = "requests" },
     { name = "rich" },
     { name = "scipy" },
@@ -495,6 +496,7 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4" },
     { name = "pandas" },
+    { name = "python-dateutil" },
     { name = "requests" },
     { name = "rich" },
     { name = "scipy" },
