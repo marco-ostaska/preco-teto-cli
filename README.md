@@ -1,30 +1,43 @@
 # preco-teto
 
-CLI para cotação e preços teto de ações (BR/US) e FIIs.
+CLI para consultar cotacao, referencias e comparativos de acoes, FIIs e fundos brasileiros.
 
-## Instalação
+## Instalacao
 
 ```bash
 git clone <repo>
-cd radar-cli
+cd preco-teto
 uv sync
 ```
 
 ## Uso
 
 ```bash
-uv run preco-teto VALE3      # ação BR
-uv run preco-teto AAPL       # ação US
-uv run preco-teto HGLG11     # FII (detectado automaticamente)
-uv run preco-teto indices    # CDI e IPCA atuais
+# Acoes e FIIs
+uv run preco-teto VALE3
+uv run preco-teto AAPL
+uv run preco-teto HGLG11
+uv run preco-teto indices
 
-# Flags de output
+# Saida alternativa
 uv run preco-teto VALE3 --json
 uv run preco-teto VALE3 --plain
+
+# Fundos por CNPJ
+uv run fundos-br 26.199.519/0001-34
+uv run fundos-br 37.306.536/0001-40 --benchmark IVV
 ```
 
 ## Testes
 
 ```bash
-uv run pytest tests/ -v
+uv run pytest tests/ -q
 ```
+
+## Aviso
+
+Este projeto foi feito para uso pessoal. Ele consome dados de terceiros e pode conter erros, atrasos, indisponibilidades ou mudancas nas fontes. Nenhuma informacao aqui constitui recomendacao financeira, e nao ha qualquer responsabilizacao por decisoes, perdas ou danos decorrentes do uso da ferramenta.
+
+## Licenca
+
+MIT. Veja [LICENSE](LICENSE).
