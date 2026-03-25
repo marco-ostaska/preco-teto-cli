@@ -4,6 +4,7 @@ from datetime import date, datetime
 from preco_teto.fundos.formulas import (
     rentabilidade,
     acumular_cdi,
+    acumular_cdi_liquido,
     pct_benchmark,
     volatilidade_anual,
     drawdown_maximo,
@@ -53,6 +54,13 @@ def test_acumular_cdi_dois_dias():
 def test_acumular_cdi_zero_taxas():
     result = acumular_cdi(pd.Series([], dtype=float))
     assert result == 0.0
+
+
+def test_acumular_cdi_liquido_aplica_desconto_de_15_porcento_na_taxa():
+    taxas = pd.Series([0.10, 0.20])
+    result = acumular_cdi_liquido(taxas)
+    expected = ((1 + 0.10 * 0.85 / 100) * (1 + 0.20 * 0.85 / 100)) - 1
+    assert result == pytest.approx(expected, rel=1e-6)
 
 
 # --- pct_benchmark ---

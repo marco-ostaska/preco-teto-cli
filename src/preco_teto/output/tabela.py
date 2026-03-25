@@ -14,9 +14,14 @@ def _teto_row(label: str, valor: float | None, cotacao: float | None) -> tuple:
     return label, f"[red]{fmt}[/red]", "[red]✗[/red]"
 
 
-def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None):
+def _title(ticker, nome, moeda, cotacao):
+    prefixo = f"{ticker} - {nome}" if nome else ticker
+    return f"{prefixo}  {moeda} {cotacao:.2f}"
+
+
+def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None):
     moeda = "R$" if is_br else "$"
-    t = Table(title=f"{ticker}  {moeda} {cotacao:.2f}", box=box.SIMPLE_HEAVY)
+    t = Table(title=_title(ticker, nome, moeda, cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
     t.add_column("")
@@ -40,12 +45,13 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None):
         console.print(f"Fed Funds: {indices.fed_funds}%   CPI: {indices.cpi}%" + (f"   Termômetro: {termometro}" if termometro else ""))
 
 
-def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None):
-    t = Table(title=f"{ticker}  R$ {cotacao:.2f}", box=box.SIMPLE_HEAVY)
+def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None):
+    t = Table(title=_title(ticker, nome, "R$", cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
     t.add_column("")
     t.add_row(*_teto_row("Teto por DY  (heurística)", tetos.get("teto_por_dy"), cotacao))
+    t.add_row(*_teto_row("Teto Bazin   (proventos)", tetos.get("teto_bazin"), cotacao))
     t.add_row(*_teto_row("VPA", tetos.get("vpa"), cotacao))
     t.add_row(*_teto_row("Teto Margem  (52w high/low)", tetos.get("teto_margem"), cotacao))
     console.print(t)

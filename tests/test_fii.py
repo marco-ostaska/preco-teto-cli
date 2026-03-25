@@ -48,3 +48,37 @@ def test_dividendo_estimado_uses_6m_when_stable(mock_get, mock_fiiscom_html):
     seis = stable.iloc[:6].mean()
     assert tres >= seis  # stable/growing
     assert svc.dividendo_estimado == pytest.approx(seis * 12, rel=1e-3)
+
+
+@patch("requests.get")
+def test_fetch_fii_expoe_nome_do_ativo(mock_get, mock_fiiscom_html, mocker):
+    mock_get.return_value.text = mock_fiiscom_html
+    mock_get.return_value.encoding = "utf-8"
+
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = {"fiftyTwoWeekLow": 140.0, "fiftyTwoWeekHigh": 160.0}
+    mock_ticker.history.return_value = pd.DataFrame({"Close": [140.0, 160.0]})
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.fii import fetch_fii
+
+    data = fetch_fii("HGLG11")
+    assert data.nome == "CGHG Logística"
+
+
+@patch("requests.get")
+def test_fetch_fii_usa_history_como_fallback_para_52_semanas(mock_get, mock_fiiscom_html, mocker):
+    mock_get.return_value.text = mock_fiiscom_html
+    mock_get.return_value.encoding = "utf-8"
+
+    hist = pd.DataFrame({"Close": [138.5, 145.0, 159.2]})
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = {}
+    mock_ticker.history.return_value = hist
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.fii import fetch_fii
+
+    data = fetch_fii("HGLG11")
+    assert data.low_52 == pytest.approx(138.5)
+    assert data.high_52 == pytest.approx(159.2)

@@ -5,13 +5,18 @@ import numpy as np
 import pandas as pd
 
 
-def _nearest_before(df: pd.DataFrame, target: date) -> float | None:
-    """Return VL_QUOTA for the last available date <= target."""
-    mask = df["DT_COMPTC"].dt.date <= target
+def _nearest_before(
+    df: pd.DataFrame,
+    target: date,
+    date_col: str = "DT_COMPTC",
+    value_col: str = "VL_QUOTA",
+) -> float | None:
+    """Return value_col for the last available date <= target."""
+    mask = df[date_col].dt.date <= target
     sub = df[mask]
     if sub.empty:
         return None
-    return float(sub.iloc[-1]["VL_QUOTA"])
+    return float(sub.iloc[-1][value_col])
 
 
 def rentabilidade(cotas: pd.DataFrame, inicio: date, fim: date) -> float | None:
@@ -23,11 +28,33 @@ def rentabilidade(cotas: pd.DataFrame, inicio: date, fim: date) -> float | None:
     return (cota_fim / cota_ini) - 1
 
 
+def rentabilidade_serie(
+    serie: pd.DataFrame,
+    inicio: date,
+    fim: date,
+    date_col: str = "data",
+    value_col: str = "valor",
+) -> float | None:
+    valor_ini = _nearest_before(serie, inicio, date_col=date_col, value_col=value_col)
+    valor_fim = _nearest_before(serie, fim, date_col=date_col, value_col=value_col)
+    if valor_ini is None or valor_fim is None or valor_ini == 0:
+        return None
+    return (valor_fim / valor_ini) - 1
+
+
 def acumular_cdi(taxas_diarias: pd.Series) -> float:
     """prod(1 + r_i/100) - 1 where r_i are daily rates in %."""
     if taxas_diarias.empty:
         return 0.0
     return float(np.prod(1 + taxas_diarias.values / 100) - 1)
+
+
+def acumular_cdi_liquido(taxas_diarias: pd.Series, aliquota_ir: float = 0.15) -> float:
+    """Aplica haircut fixo de IR nas taxas diarias antes de acumular."""
+    if taxas_diarias.empty:
+        return 0.0
+    fator_liquido = 1 - aliquota_ir
+    return float(np.prod(1 + (taxas_diarias.values * fator_liquido) / 100) - 1)
 
 
 def pct_benchmark(ret_fundo: float, ret_bench: float) -> float | None:
@@ -74,6 +101,22 @@ def _monthly_returns(cotas: pd.DataFrame) -> pd.Series:
     return pd.Series(result)
 
 
+def _monthly_returns_serie(
+    serie: pd.DataFrame,
+    date_col: str = "data",
+    value_col: str = "valor",
+) -> pd.Series:
+    df = serie.copy()
+    df["ym"] = df[date_col].dt.to_period("M")
+    result = {}
+    for ym, group in df.groupby("ym"):
+        group = group.sort_values(date_col)
+        first = float(group.iloc[0][value_col])
+        last = float(group.iloc[-1][value_col])
+        result[ym] = (last / first) - 1 if first != 0 else None
+    return pd.Series(result)
+
+
 def _monthly_cdi(cdi_df: pd.DataFrame) -> pd.Series:
     """Returns a Series indexed by Period('M') with that month's CDI return (accumulated)."""
     df = cdi_df.copy()
@@ -85,31 +128,46 @@ def _monthly_cdi(cdi_df: pd.DataFrame) -> pd.Series:
 
 
 def meses_acima_benchmark(
-    cotas: pd.DataFrame, cdi_df: pd.DataFrame, n_meses: int = 36
+    cotas: pd.DataFrame,
+    benchmark_df: pd.DataFrame,
+    n_meses: int = 36,
+    benchmark_tipo: str = "cdi",
 ) -> tuple[int, int]:
     """Returns (months_above, total_months) for the last n_meses months."""
     fund_monthly = _monthly_returns(cotas).tail(n_meses)
-    cdi_monthly = _monthly_cdi(cdi_df)
-    common = fund_monthly.index.intersection(cdi_monthly.index)
+    bench_monthly = (
+        _monthly_cdi(benchmark_df)
+        if benchmark_tipo == "cdi"
+        else _monthly_returns_serie(benchmark_df)
+    )
+    common = fund_monthly.index.intersection(bench_monthly.index)
     if common.empty:
         return 0, 0
     acima = sum(
         1
         for ym in common
-        if fund_monthly[ym] is not None and fund_monthly[ym] > cdi_monthly[ym]
+        if fund_monthly[ym] is not None and fund_monthly[ym] > bench_monthly[ym]
     )
     return acima, len(common)
 
 
-def meses_consecutivos_abaixo(cotas: pd.DataFrame, cdi_df: pd.DataFrame) -> int:
+def meses_consecutivos_abaixo(
+    cotas: pd.DataFrame,
+    benchmark_df: pd.DataFrame,
+    benchmark_tipo: str = "cdi",
+) -> int:
     """Current streak of consecutive months below benchmark."""
     fund_monthly = _monthly_returns(cotas)
-    cdi_monthly = _monthly_cdi(cdi_df)
-    common = sorted(fund_monthly.index.intersection(cdi_monthly.index))
+    bench_monthly = (
+        _monthly_cdi(benchmark_df)
+        if benchmark_tipo == "cdi"
+        else _monthly_returns_serie(benchmark_df)
+    )
+    common = sorted(fund_monthly.index.intersection(bench_monthly.index))
     streak = 0
     for ym in reversed(common):
         f = fund_monthly[ym]
-        c = cdi_monthly[ym]
+        c = bench_monthly[ym]
         if f is not None and f < c:
             streak += 1
         else:

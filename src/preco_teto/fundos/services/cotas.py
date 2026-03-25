@@ -38,7 +38,7 @@ def _download_zip(year: int, month: int) -> bytes:
     return resp.content
 
 
-def _load_zip(year: int, month: int, cache_dir: Path, today: date) -> bytes:
+def _load_zip(year: int, month: int, cache_dir: Path, today: date) -> tuple[bytes, str]:
     filename = _zip_filename(year, month)
     path = cache_dir / filename
     is_current_month = (year == today.year and month == today.month)
@@ -48,7 +48,8 @@ def _load_zip(year: int, month: int, cache_dir: Path, today: date) -> bytes:
         cache_dir.mkdir(parents=True, exist_ok=True)
         data = _download_zip(year, month)
         path.write_bytes(data)
-    return path.read_bytes()
+        return data, "download"
+    return path.read_bytes(), "cache"
 
 
 def _parse_zip(zip_bytes: bytes, cnpj: str) -> pd.DataFrame:
@@ -83,8 +84,12 @@ def extrair_cotas(cnpj: str, meses: int = 36) -> pd.DataFrame:
             year -= 1
 
         try:
-            print(f"\rBaixando dados CVM: {i+1}/{meses} meses...", end="", flush=True)
-            zip_bytes = _load_zip(year, month, cache_dir, today)
+            zip_bytes, source = _load_zip(year, month, cache_dir, today)
+            if source == "download":
+                print(f"\rBaixando dados CVM: {i+1}/{meses} meses...", end="", flush=True)
+            else:
+                print(f"\rUsando cache CVM: {i+1}/{meses} meses...", end="", flush=True)
+            print(f"\rProcessando dados CVM: {i+1}/{meses} meses...", end="", flush=True)
             df = _parse_zip(zip_bytes, cnpj)
             if not df.empty:
                 frames.append(df)
