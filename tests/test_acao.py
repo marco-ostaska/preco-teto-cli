@@ -104,3 +104,28 @@ def test_todos_tetos_none_sem_dados(mocker):
     data = fetch_acao("IAU")
     assert data.dividendo_medio is None
     assert data.cotacao is None
+
+
+@patch("yfinance.Ticker")
+def test_fetch_acao_expoe_nome_do_ativo(mock_cls, mock_yf_info_br, mock_income_stmt, mock_adj_close):
+    info = dict(mock_yf_info_br, shortName="Vale S.A.")
+    mock_cls.return_value = make_ticker_mock(info, mock_income_stmt, mock_adj_close)
+
+    from preco_teto.services.acao import fetch_acao
+
+    data = fetch_acao("VALE3")
+    assert data.nome == "Vale S.A."
+
+
+@patch("yfinance.Ticker")
+def test_fetch_acao_usa_history_como_fallback_para_52_semanas(mock_cls, mock_yf_info_br, mock_income_stmt, mock_adj_close):
+    info = dict(mock_yf_info_br)
+    info.pop("fiftyTwoWeekLow")
+    info.pop("fiftyTwoWeekHigh")
+    mock_cls.return_value = make_ticker_mock(info, mock_income_stmt, mock_adj_close)
+
+    from preco_teto.services.acao import fetch_acao
+
+    data = fetch_acao("VALE3")
+    assert data.low_52 == pytest.approx(float(mock_adj_close["Close"].min()))
+    assert data.high_52 == pytest.approx(float(mock_adj_close["Close"].max()))

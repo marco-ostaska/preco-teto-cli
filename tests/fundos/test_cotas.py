@@ -63,3 +63,24 @@ def test_extrair_cotas_cnpj_nao_encontrado(tmp_path, monkeypatch):
     with patch("preco_teto.fundos.services.cotas._today", return_value=date(2024, 2, 1)):
         with pytest.raises(ValueError, match="sem dados de cotas"):
             extrair_cotas("26.199.519/0001-34", meses=1)
+
+
+def test_extrair_cotas_mostra_download_cache_e_processamento(tmp_path, monkeypatch, capsys):
+    zip_bytes = _make_zip(CSV_CONTENT.encode("latin-1"))
+
+    monkeypatch.setattr("preco_teto.fundos.services.cotas._cache_dir", lambda: tmp_path)
+    monkeypatch.setattr("preco_teto.fundos.services.cotas._download_zip", lambda y, m: zip_bytes)
+
+    from datetime import date
+    with patch("preco_teto.fundos.services.cotas._today", return_value=date(2024, 2, 1)):
+        extrair_cotas(CNPJ, meses=1)
+    out1 = capsys.readouterr().out
+
+    with patch("preco_teto.fundos.services.cotas._today", return_value=date(2024, 2, 1)):
+        extrair_cotas(CNPJ, meses=1)
+    out2 = capsys.readouterr().out
+
+    assert "Baixando dados CVM: 1/1 meses..." in out1
+    assert "Processando dados CVM: 1/1 meses..." in out1
+    assert "Usando cache CVM: 1/1 meses..." in out2
+    assert "Processando dados CVM: 1/1 meses..." in out2

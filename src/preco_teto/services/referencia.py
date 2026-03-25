@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from preco_teto.services.banco_central import fetch_cdi, fetch_ipca, melhor_indice_br
+from preco_teto.services import banco_central
 
 FED_FUNDS_US = 5.25  # atualizar manualmente quando Fed mudar
 CPI_US = 3.1         # atualizar manualmente quando necessário
@@ -19,9 +19,9 @@ class IndicesUS:
 
 
 def fetch_indices_br() -> IndicesBR:
-    cdi = fetch_cdi()
-    ipca = fetch_ipca()
-    melhor = melhor_indice_br(cdi, ipca)
+    cdi = banco_central.fetch_cdi()
+    ipca = banco_central.fetch_ipca()
+    melhor = banco_central.melhor_indice_br(cdi, ipca)
     return IndicesBR(cdi=cdi, ipca=ipca, melhor_indice=melhor)
 
 

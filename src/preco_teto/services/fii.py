@@ -25,6 +25,14 @@ class FiisComService:
 
     def _parse(self, html: str) -> dict:
         soup = BeautifulSoup(html, "html.parser")
+        nome = None
+        h1 = soup.find("h1")
+        if h1:
+            texto = h1.get_text(" ", strip=True)
+            if " - " in texto:
+                nome = texto.split(" - ", 1)[1].strip()
+            else:
+                nome = texto.strip()
         cotacao = None
         q = soup.find("div", class_="item quotation")
         if q:
@@ -62,7 +70,17 @@ class FiisComService:
                 except Exception:
                     pass
 
-        return {"cotacao": cotacao, "vpa": vpa, "dy_html": dy_html, "dividendos": dividendos}
+        return {
+            "nome": nome,
+            "cotacao": cotacao,
+            "vpa": vpa,
+            "dy_html": dy_html,
+            "dividendos": dividendos,
+        }
+
+    @property
+    def nome(self) -> str | None:
+        return self._dados.get("nome")
 
     @property
     def cotacao(self) -> float | None:
@@ -94,6 +112,7 @@ class FiisComService:
 @dataclass
 class FiiData:
     ticker: str
+    nome: str | None
     cotacao: float | None
     vpa: float | None
     pvp: float | None
@@ -113,14 +132,23 @@ def fetch_fii(ticker: str) -> FiiData:
     low_52 = None
     high_52 = None
     try:
-        yf_info = yf.Ticker(f"{ticker}.SA").info or {}
+        yf_ticker = yf.Ticker(f"{ticker}.SA")
+        yf_info = yf_ticker.info or {}
         low_52 = yf_info.get("fiftyTwoWeekLow")
         high_52 = yf_info.get("fiftyTwoWeekHigh")
+        if low_52 is None or high_52 is None:
+            history = yf_ticker.history(period="1y")
+            if history is not None and not history.empty and "Close" in history:
+                close = history["Close"].dropna()
+                if not close.empty:
+                    low_52 = low_52 if low_52 is not None else float(close.min())
+                    high_52 = high_52 if high_52 is not None else float(close.max())
     except Exception:
         pass
 
     return FiiData(
         ticker=ticker,
+        nome=svc.nome,
         cotacao=cotacao,
         vpa=vpa,
         pvp=pvp,

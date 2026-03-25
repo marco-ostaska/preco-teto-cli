@@ -37,6 +37,15 @@ def _year_prices(history: pd.DataFrame) -> dict[int, float]:
     return result
 
 
+def _history_low_high(history: pd.DataFrame) -> tuple[float | None, float | None]:
+    if history is None or history.empty or "Close" not in history:
+        return None, None
+    close = history["Close"].dropna()
+    if close.empty:
+        return None, None
+    return float(close.min()), float(close.max())
+
+
 def _dividendo_medio(dividends: pd.Series, dividend_rate: float | None) -> float | None:
     """
     Calcula dividendo anual médio dos últimos 3 anos completos.
@@ -61,6 +70,7 @@ def _dividendo_medio(dividends: pd.Series, dividend_rate: float | None) -> float
 @dataclass
 class AcaoData:
     ticker: str
+    nome: str | None
     is_br: bool
     cotacao: float | None
     dividend_rate: float | None
@@ -90,6 +100,7 @@ def fetch_acao(ticker: str) -> AcaoData:
 
     cotacao = _get_cotacao(info, history)
     year_px = _year_prices(history)
+    hist_low_52, hist_high_52 = _history_low_high(history)
 
     income_net = None
     try:
@@ -110,6 +121,7 @@ def fetch_acao(ticker: str) -> AcaoData:
 
     return AcaoData(
         ticker=ticker,
+        nome=info.get("shortName") or info.get("longName"),
         is_br=is_br,
         cotacao=cotacao,
         dividend_rate=dividend_rate,
@@ -124,6 +136,6 @@ def fetch_acao(ticker: str) -> AcaoData:
         income_net=income_net,
         year_prices=year_px,
         previous_close=info.get("previousClose") or info.get("regularMarketPreviousClose"),
-        low_52=info.get("fiftyTwoWeekLow"),
-        high_52=info.get("fiftyTwoWeekHigh"),
+        low_52=info.get("fiftyTwoWeekLow") or hist_low_52,
+        high_52=info.get("fiftyTwoWeekHigh") or hist_high_52,
     )

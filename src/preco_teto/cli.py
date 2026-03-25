@@ -55,6 +55,7 @@ def main(
             div_anual = (data.cotacao * data.dividend_yield / 100) if data.dividend_yield and data.cotacao else None
             tetos = {
                 "teto_por_dy": teto_por_dy(div_anual, indice_base) if data.cotacao else None,
+                "teto_bazin": teto_bazin(data.dividendo_estimado, indice_base),
                 "vpa": data.vpa,
                 "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
             }
@@ -67,7 +68,7 @@ def main(
                 else None
             )
             termometro = termometro_margem(_margem_val)
-            renderer.render_fii(data.ticker, data.cotacao, tetos, idx, termometro=termometro)
+            renderer.render_fii(data.ticker, data.cotacao, tetos, idx, termometro=termometro, nome=data.nome)
             return
         except Exception:
             pass  # fallback para ação BR
@@ -109,7 +110,7 @@ def main(
         else None
     )
     termometro = termometro_margem(_margem_val)
-    renderer.render_acao(data.ticker, data.cotacao, data.is_br, tetos, idx, termometro=termometro)
+    renderer.render_acao(data.ticker, data.cotacao, data.is_br, tetos, idx, termometro=termometro, nome=data.nome)
 
 
 def _indices(

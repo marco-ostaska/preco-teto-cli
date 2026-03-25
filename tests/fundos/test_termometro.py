@@ -1,8 +1,10 @@
 import pytest
 from preco_teto.fundos.termometro import (
     performance,
+    performance_relativa,
     consistencia,
     alerta,
+    analise_fundo,
     cor_pct_benchmark,
 )
 
@@ -32,6 +34,22 @@ def test_performance_none():
     assert performance(None) == "—"
 
 
+def test_performance_relativa_usa_pct_quando_benchmark_positivo():
+    assert performance_relativa(0.12, 0.10, 1.20) == "Excelente"
+
+
+def test_performance_relativa_mostra_pior_com_benchmark_negativo():
+    assert performance_relativa(-0.0295, -0.0270, None) == "Pior"
+
+
+def test_performance_relativa_mostra_melhor_com_benchmark_negativo():
+    assert performance_relativa(-0.0100, -0.0270, None) == "Melhor"
+
+
+def test_performance_relativa_mostra_igual_com_benchmark_negativo():
+    assert performance_relativa(-0.0270, -0.0270, None) == "Igual"
+
+
 # --- consistencia ---
 def test_consistencia_consistente():
     assert consistencia(acima=22, total=36) == "Consistente"   # 61.1%
@@ -58,6 +76,27 @@ def test_alerta_atencao():
 def test_alerta_critico():
     assert alerta(12) == "Crítico"
     assert alerta(24) == "Crítico"
+
+
+# --- analise_fundo ---
+def test_analise_fundo_excelente():
+    assert analise_fundo(1.00, "Consistente", "Nenhum") == "Excelente"
+
+
+def test_analise_fundo_bom():
+    assert analise_fundo(0.97, "Irregular", "Atenção") == "Bom"
+
+
+def test_analise_fundo_fraco():
+    assert analise_fundo(0.92, "Inconsistente", "Nenhum") == "Fraco"
+
+
+def test_analise_fundo_ruim_por_alerta_critico():
+    assert analise_fundo(0.99, "Consistente", "Crítico") == "Ruim"
+
+
+def test_analise_fundo_ruim_por_desempenho():
+    assert analise_fundo(0.89, "Consistente", "Nenhum") == "Ruim"
 
 
 # --- cor_pct_benchmark ---
