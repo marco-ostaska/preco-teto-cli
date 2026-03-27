@@ -303,10 +303,16 @@ def test_buscar_fundo_prefere_extrato_antes_do_registro_e_legado():
     ) as legado_mock:
         info = buscar_fundo("03.618.256/0001-55")
 
-    assert info == extrato_info
+    assert info.nome == extrato_info.nome
+    assert info.classe_anbima == extrato_info.classe_anbima
+    assert info.taxa_adm == extrato_info.taxa_adm
+    assert info.taxa_perf == extrato_info.taxa_perf
+    assert info.gestor == extrato_info.gestor
+    assert info.pl == extrato_info.pl
+    assert info.cotistas == 10
     extrato_mock.assert_called_once_with("03.618.256/0001-55")
-    registro_mock.assert_not_called()
-    legado_mock.assert_not_called()
+    registro_mock.assert_called_once_with("03.618.256/0001-55")
+    legado_mock.assert_called_once_with("03.618.256/0001-55")
 
 
 def test_buscar_fundo_faz_fallback_para_registro_quando_extrato_nao_tem_cnpj():
@@ -320,6 +326,16 @@ def test_buscar_fundo_faz_fallback_para_registro_quando_extrato_nao_tem_cnpj():
         pl=1000.0,
         cotistas=None,
     )
+    legado_info = FundInfo(
+        cnpj="03.618.256/0001-55",
+        nome="FUNDO VIA LEGADO",
+        classe_anbima="Classe Legado",
+        taxa_adm=0.5,
+        taxa_perf=None,
+        gestor="Gestor Legado",
+        pl=500.0,
+        cotistas=10,
+    )
 
     with patch(
         "preco_teto.fundos.services.cadastro._buscar_no_extrato",
@@ -329,13 +345,17 @@ def test_buscar_fundo_faz_fallback_para_registro_quando_extrato_nao_tem_cnpj():
         return_value=registro_info,
     ) as registro_mock, patch(
         "preco_teto.fundos.services.cadastro._buscar_no_cadastro_legado",
-        side_effect=AssertionError("cadastro legado nao deveria ser consultado"),
-    ):
+        return_value=legado_info,
+    ) as legado_mock:
         info = buscar_fundo("03.618.256/0001-55")
 
-    assert info == registro_info
+    assert info.nome == registro_info.nome
+    assert info.gestor == registro_info.gestor
+    assert info.pl == registro_info.pl
+    assert info.cotistas == 10
     extrato_mock.assert_called_once_with("03.618.256/0001-55")
     registro_mock.assert_called_once_with("03.618.256/0001-55")
+    legado_mock.assert_called_once_with("03.618.256/0001-55")
 
 
 def test_buscar_fundo_faz_fallback_para_legado_quando_extrato_e_registro_nao_tem_cnpj():
@@ -389,3 +409,97 @@ def test_buscar_no_extrato_prefere_linha_mais_recente(tmp_path, monkeypatch):
     assert info.taxa_adm == pytest.approx(0.04)
     assert info.taxa_perf == pytest.approx(20.0)
     assert info.pl == pytest.approx(200.0)
+
+
+def test_buscar_fundo_complementa_extrato_com_dados_do_registro():
+    extrato_info = FundInfo(
+        cnpj="03.618.256/0001-55",
+        nome="FUNDO VIA EXTRATO",
+        classe_anbima="Multimercado Livre",
+        taxa_adm=0.04,
+        taxa_perf=20.0,
+        gestor="",
+        pl=None,
+        cotistas=None,
+    )
+    registro_info = FundInfo(
+        cnpj="03.618.256/0001-55",
+        nome="FUNDO VIA REGISTRO",
+        classe_anbima="Classe Registro",
+        taxa_adm=None,
+        taxa_perf=None,
+        gestor="Gestor Registro",
+        pl=1000.0,
+        cotistas=None,
+    )
+
+    with patch(
+        "preco_teto.fundos.services.cadastro._buscar_no_extrato",
+        return_value=extrato_info,
+    ) as extrato_mock, patch(
+        "preco_teto.fundos.services.cadastro._buscar_no_registro_classe",
+        return_value=registro_info,
+    ) as registro_mock:
+        info = buscar_fundo("03.618.256/0001-55")
+
+    assert info.nome == "FUNDO VIA EXTRATO"
+    assert info.classe_anbima == "Multimercado Livre"
+    assert info.taxa_adm == pytest.approx(0.04)
+    assert info.taxa_perf == pytest.approx(20.0)
+    assert info.gestor == "Gestor Registro"
+    assert info.pl == pytest.approx(1000.0)
+    extrato_mock.assert_called_once_with("03.618.256/0001-55")
+    registro_mock.assert_called_once_with("03.618.256/0001-55")
+
+
+def test_buscar_fundo_complementa_com_legado_quando_registro_nao_basta():
+    extrato_info = FundInfo(
+        cnpj="03.618.256/0001-55",
+        nome="FUNDO VIA EXTRATO",
+        classe_anbima="Multimercado Livre",
+        taxa_adm=0.04,
+        taxa_perf=20.0,
+        gestor="",
+        pl=None,
+        cotistas=None,
+    )
+    registro_info = FundInfo(
+        cnpj="03.618.256/0001-55",
+        nome="FUNDO VIA REGISTRO",
+        classe_anbima="Classe Registro",
+        taxa_adm=None,
+        taxa_perf=None,
+        gestor="",
+        pl=1000.0,
+        cotistas=None,
+    )
+    legado_info = FundInfo(
+        cnpj="03.618.256/0001-55",
+        nome="FUNDO VIA LEGADO",
+        classe_anbima="Classe Legado",
+        taxa_adm=0.50,
+        taxa_perf=None,
+        gestor="Gestor Legado",
+        pl=500.0,
+        cotistas=42,
+    )
+
+    with patch(
+        "preco_teto.fundos.services.cadastro._buscar_no_extrato",
+        return_value=extrato_info,
+    ) as extrato_mock, patch(
+        "preco_teto.fundos.services.cadastro._buscar_no_registro_classe",
+        return_value=registro_info,
+    ) as registro_mock, patch(
+        "preco_teto.fundos.services.cadastro._buscar_no_cadastro_legado",
+        return_value=legado_info,
+    ) as legado_mock:
+        info = buscar_fundo("03.618.256/0001-55")
+
+    assert info.nome == "FUNDO VIA EXTRATO"
+    assert info.gestor == "Gestor Legado"
+    assert info.pl == pytest.approx(1000.0)
+    assert info.cotistas == 42
+    extrato_mock.assert_called_once_with("03.618.256/0001-55")
+    registro_mock.assert_called_once_with("03.618.256/0001-55")
+    legado_mock.assert_called_once_with("03.618.256/0001-55")

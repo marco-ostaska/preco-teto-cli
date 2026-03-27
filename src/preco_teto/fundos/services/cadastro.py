@@ -125,6 +125,29 @@ def _prefer_latest_row(df: pd.DataFrame, date_col: str) -> pd.Series:
     return df.iloc[0]
 
 
+def _has_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip() != ""
+    return True
+
+
+def _merge_fund_info(base: FundInfo, supplement: FundInfo | None) -> FundInfo:
+    if supplement is None:
+        return base
+    return FundInfo(
+        cnpj=base.cnpj,
+        nome=base.nome if _has_value(base.nome) else supplement.nome,
+        classe_anbima=base.classe_anbima if _has_value(base.classe_anbima) else supplement.classe_anbima,
+        taxa_adm=base.taxa_adm if _has_value(base.taxa_adm) else supplement.taxa_adm,
+        taxa_perf=base.taxa_perf if _has_value(base.taxa_perf) else supplement.taxa_perf,
+        gestor=base.gestor if _has_value(base.gestor) else supplement.gestor,
+        pl=base.pl if _has_value(base.pl) else supplement.pl,
+        cotistas=base.cotistas if _has_value(base.cotistas) else supplement.cotistas,
+    )
+
+
 def _buscar_no_extrato(cnpj: str) -> FundInfo | None:
     df = _load_extrato()
     cnpj_digits = _normalize_cnpj(cnpj)
@@ -213,32 +236,33 @@ def _buscar_no_registro_classe(cnpj: str) -> FundInfo | None:
 def buscar_fundo(cnpj: str) -> FundInfo:
     """Retorna FundInfo para o CNPJ ou lança ValueError."""
     extrato_error: ValueError | None = None
+    extrato_info: FundInfo | None = None
     try:
-        info = _buscar_no_extrato(cnpj)
+        extrato_info = _buscar_no_extrato(cnpj)
     except ValueError as exc:
         extrato_error = exc
-        info = None
-    if info is not None:
-        return info
 
     legado_error: ValueError | None = None
     registro_error: ValueError | None = None
+    registro_info: FundInfo | None = None
 
     try:
-        info = _buscar_no_registro_classe(cnpj)
+        registro_info = _buscar_no_registro_classe(cnpj)
     except ValueError as exc:
         registro_error = exc
-        info = None
-    if info is not None:
-        return info
+
+    legado_info: FundInfo | None = None
 
     try:
-        info = _buscar_no_cadastro_legado(cnpj)
+        legado_info = _buscar_no_cadastro_legado(cnpj)
     except ValueError as exc:
         legado_error = exc
-        info = None
-    if info is not None:
-        return info
+    if extrato_info is not None:
+        return _merge_fund_info(_merge_fund_info(extrato_info, registro_info), legado_info)
+    if registro_info is not None:
+        return _merge_fund_info(registro_info, legado_info)
+    if legado_info is not None:
+        return legado_info
 
     if extrato_error is not None:
         raise extrato_error
