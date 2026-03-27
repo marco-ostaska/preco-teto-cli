@@ -82,3 +82,24 @@ def test_fetch_fii_usa_history_como_fallback_para_52_semanas(mock_get, mock_fiis
     data = fetch_fii("HGLG11")
     assert data.low_52 == pytest.approx(138.5)
     assert data.high_52 == pytest.approx(159.2)
+
+
+@patch("requests.get")
+def test_fetch_fii_descarta_outlier_no_historico_de_52_semanas(mock_get, mock_fiiscom_html, mocker):
+    mock_get.return_value.text = mock_fiiscom_html
+    mock_get.return_value.encoding = "utf-8"
+
+    hist = pd.DataFrame({"Close": [100.0, 104.0, 112.0, 1.06]})
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = {"fiftyTwoWeekLow": 1.06, "fiftyTwoWeekHigh": 112.0}
+    mock_ticker.history.return_value = hist
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.fii import fetch_fii
+    from preco_teto.formulas import teto_margem
+
+    data = fetch_fii("XPML11")
+    assert data.low_52 == pytest.approx(100.0)
+    assert data.high_52 == pytest.approx(112.0)
+    mock_ticker.history.assert_called_once_with(period="1y", auto_adjust=False)
+    assert teto_margem(107.64, data.low_52, data.high_52) == pytest.approx(103.0)

@@ -48,6 +48,21 @@ def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None):
         print(f"Termômetro: {termometro}")
 
 
+def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None):
+    print(_header(ticker, nome, cotacao, "R$"))
+    print("-" * 46)
+    for key, label in [
+        ("teto_pl", "Teto PL (-6%)"),
+        ("pl_cota", "PL por Cota"),
+        ("teto_margem", "Teto Margem (52w)"),
+    ]:
+        v = tetos.get(key)
+        mark = "OK" if (v and cotacao and v >= cotacao) else "X" if v else ""
+        print(f"{label:<30} {_fmt(v, True):>12}  {mark}")
+    if termometro:
+        print(f"Termômetro: {termometro}")
+
+
 def render_indices(br):
     print(f"CDI:   {br.cdi}%")
     print(f"IPCA:  {br.ipca}%")

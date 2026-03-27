@@ -58,6 +58,18 @@ def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
     console.print(f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%" + (f"   Termômetro: {termometro}" if termometro else ""))
 
 
+def render_etf(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None):
+    t = Table(title=_title(ticker, nome, "R$", cotacao), box=box.SIMPLE_HEAVY)
+    t.add_column("Teto", style="bold")
+    t.add_column("Valor", justify="right")
+    t.add_column("")
+    t.add_row(*_teto_row("Teto PL (-6%)", tetos.get("teto_pl"), cotacao))
+    t.add_row(*_teto_row("PL por Cota", tetos.get("pl_cota"), cotacao))
+    t.add_row(*_teto_row("Teto Margem (52w high/low)", tetos.get("teto_margem"), cotacao))
+    console.print(t)
+    console.print(f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%" + (f"   Termômetro: {termometro}" if termometro else ""))
+
+
 def render_indices(br):
     t = Table(title="Índices de Referência BR", box=box.SIMPLE_HEAVY)
     t.add_column("Índice")

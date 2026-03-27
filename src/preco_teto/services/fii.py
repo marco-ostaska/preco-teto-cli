@@ -122,6 +122,25 @@ class FiiData:
     high_52: float | None = None
 
 
+def _faixa_52_semanas_por_history(history: pd.DataFrame) -> tuple[float | None, float | None]:
+    if history is None or history.empty or "Close" not in history:
+        return None, None
+
+    close = history["Close"].dropna()
+    if close.empty:
+        return None, None
+
+    median = close.median()
+    if median and median > 0:
+        lower = median * 0.5
+        upper = median * 1.5
+        filtered = close[(close >= lower) & (close <= upper)]
+        if not filtered.empty:
+            close = filtered
+
+    return float(close.min()), float(close.max())
+
+
 def fetch_fii(ticker: str) -> FiiData:
     ticker = ticker.upper()
     svc = FiisComService(ticker)
@@ -136,13 +155,16 @@ def fetch_fii(ticker: str) -> FiiData:
         yf_info = yf_ticker.info or {}
         low_52 = yf_info.get("fiftyTwoWeekLow")
         high_52 = yf_info.get("fiftyTwoWeekHigh")
-        if low_52 is None or high_52 is None:
-            history = yf_ticker.history(period="1y")
-            if history is not None and not history.empty and "Close" in history:
-                close = history["Close"].dropna()
-                if not close.empty:
-                    low_52 = low_52 if low_52 is not None else float(close.min())
-                    high_52 = high_52 if high_52 is not None else float(close.max())
+        history = yf_ticker.history(period="1y", auto_adjust=False)
+        hist_low, hist_high = _faixa_52_semanas_por_history(history)
+
+        low_is_invalid = low_52 is None or (hist_low is not None and low_52 < hist_low * 0.5)
+        high_is_invalid = high_52 is None or (hist_high is not None and high_52 > hist_high * 1.5)
+
+        if low_is_invalid:
+            low_52 = hist_low
+        if high_is_invalid:
+            high_52 = hist_high
     except Exception:
         pass
 

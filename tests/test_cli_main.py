@@ -67,3 +67,116 @@ def test_cli_render_fii_inclui_teto_bazin(mocker):
     assert "teto_bazin" in tetos
     assert tetos["teto_bazin"] is not None
     assert renderer.render_fii.call_args.kwargs["nome"] == "CGHG Logística"
+
+
+def test_cli_render_etf_inclui_teto_pl(mocker):
+    data = SimpleNamespace(
+        ticker="DIVO11",
+        nome="IT NOW IDIV",
+        cnpj="13.416.245/0001-46",
+        cotacao=132.06,
+        pl_cota=140.50,
+        pl_total=1761051855.0,
+        cotistas=12346,
+        low_52=91.30,
+        high_52=136.43,
+    )
+    idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_etf", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["DIVO11", "--etf"])
+
+    assert result.exit_code == 0
+    tetos = renderer.render_etf.call_args.args[2]
+    assert tetos["teto_pl"] == 132.07
+    assert "teto_margem" in tetos
+    assert renderer.render_etf.call_args.kwargs["nome"] == "IT NOW IDIV"
+
+
+def test_cli_etf_sem_pl_mostra_somente_teto_margem(mocker):
+    data = SimpleNamespace(
+        ticker="DIVO11",
+        nome="IT NOW IDIV",
+        cnpj="13.416.245/0001-46",
+        cotacao=132.06,
+        pl_cota=None,
+        pl_total=None,
+        cotistas=None,
+        low_52=91.30,
+        high_52=136.43,
+    )
+    idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_etf", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["DIVO11", "--etf"])
+
+    assert result.exit_code == 0
+    tetos = renderer.render_etf.call_args.args[2]
+    assert tetos["teto_pl"] is None
+    assert tetos["teto_margem"] is not None
+
+
+def test_cli_flag_etf_forca_fluxo_etf(mocker):
+    etf_data = SimpleNamespace(
+        ticker="HGLG11",
+        nome="ETF TESTE",
+        cnpj="00.000.000/0001-00",
+        cotacao=100.0,
+        pl_cota=None,
+        pl_total=None,
+        cotistas=None,
+        low_52=90.0,
+        high_52=110.0,
+    )
+    idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_etf", return_value=etf_data)
+    fii_mock = mocker.patch("preco_teto.cli.fetch_fii")
+    acao_mock = mocker.patch("preco_teto.cli.fetch_acao")
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["HGLG11", "--etf"])
+
+    assert result.exit_code == 0
+    fii_mock.assert_not_called()
+    acao_mock.assert_not_called()
+    assert renderer.render_etf.called
+
+
+def test_cli_flag_fii_forca_fluxo_fii(mocker):
+    fii_data = SimpleNamespace(
+        ticker="DIVO11",
+        nome="FII TESTE",
+        cotacao=100.0,
+        vpa=105.0,
+        pvp=0.95,
+        dividend_yield=12.0,
+        dividendo_estimado=12.5,
+        low_52=90.0,
+        high_52=110.0,
+    )
+    idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
+    renderer = mocker.Mock()
+
+    etf_mock = mocker.patch("preco_teto.cli.fetch_etf")
+    mocker.patch("preco_teto.cli.fetch_fii", return_value=fii_data)
+    acao_mock = mocker.patch("preco_teto.cli.fetch_acao")
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["DIVO11", "--fii"])
+
+    assert result.exit_code == 0
+    etf_mock.assert_not_called()
+    acao_mock.assert_not_called()
+    assert renderer.render_fii.called

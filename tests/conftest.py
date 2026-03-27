@@ -86,6 +86,43 @@ INVESTIDOR10_HTML = """
 </body></html>
 """
 
+STATUSINVEST_ETF_HTML = """
+<html><body>
+  <h1>DIVO11</h1>
+  <div title="Valor atual do ativo">
+    <h3 class="title m-0">Valor atual</h3>
+    <span class="icon">R$</span>
+    <strong class="value">132,06</strong>
+  </div>
+  <div class="info-card">
+    <span class="sub-title">Min. 52 semanas</span>
+    <span class="icon">R$</span>
+    <strong class="value">91,30</strong>
+  </div>
+  <div class="info-card">
+    <span class="sub-title">Máx. 52 semanas</span>
+    <span class="icon">R$</span>
+    <strong class="value">136,43</strong>
+  </div>
+  <div class="info">
+    <div>
+      <div title="">
+        <h3 class="title m-0">CNPJ</h3>
+        <strong class="value">13.416.245/0001-46</strong>
+      </div>
+    </div>
+  </div>
+  <div class="info">
+    <div>
+      <div title="">
+        <h3 class="title m-0">Patrimônio líquido</h3>
+        <strong class="value">1.760.051.855</strong>
+      </div>
+    </div>
+  </div>
+</body></html>
+"""
+
 
 @pytest.fixture
 def mock_fiiscom_html():
@@ -95,6 +132,11 @@ def mock_fiiscom_html():
 @pytest.fixture
 def mock_investidor10_html():
     return INVESTIDOR10_HTML
+
+
+@pytest.fixture
+def mock_statusinvest_etf_html():
+    return STATUSINVEST_ETF_HTML
 
 
 @pytest.fixture

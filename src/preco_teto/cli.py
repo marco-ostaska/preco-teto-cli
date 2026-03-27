@@ -2,6 +2,7 @@ from typing import Annotated
 import typer
 
 from preco_teto.services.acao import fetch_acao
+from preco_teto.services.etf import fetch_etf
 from preco_teto.services.fii import fetch_fii
 from preco_teto.services.referencia import fetch_indices_br, fetch_indices_us
 from preco_teto.formulas import (
@@ -31,11 +32,58 @@ def _is_fii(ticker: str) -> bool:
     return ticker.endswith("11")
 
 
+def _render_etf(ticker: str, renderer) -> bool:
+    data = fetch_etf(ticker)
+    idx = fetch_indices_br()
+    tetos = {
+        "teto_pl": round(data.pl_cota * 0.94, 2) if data.pl_cota is not None else None,
+        "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
+        "pl_cota": data.pl_cota,
+    }
+    if _todos_none(tetos):
+        typer.echo(f"{ticker} — cálculo de preço teto não disponível para este ativo.")
+        return True
+    _margem_val = (
+        (data.cotacao - data.low_52) / (data.high_52 - data.low_52)
+        if data.cotacao and data.low_52 and data.high_52 and (data.high_52 - data.low_52) != 0
+        else None
+    )
+    termometro = termometro_margem(_margem_val)
+    renderer.render_etf(data.ticker, data.cotacao, tetos, idx, termometro=termometro, nome=data.nome)
+    return True
+
+
+def _render_fii(ticker: str, renderer) -> bool:
+    data = fetch_fii(ticker)
+    idx = fetch_indices_br()
+    indice_base = idx.melhor_indice
+    div_anual = (data.cotacao * data.dividend_yield / 100) if data.dividend_yield and data.cotacao else None
+    tetos = {
+        "teto_por_dy": teto_por_dy(div_anual, indice_base) if data.cotacao else None,
+        "teto_bazin": teto_bazin(data.dividendo_estimado, indice_base),
+        "vpa": data.vpa,
+        "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
+    }
+    if _todos_none(tetos):
+        typer.echo(f"{ticker} — cálculo de preço teto não disponível para este ativo.")
+        return True
+    _margem_val = (
+        (data.cotacao - data.low_52) / (data.high_52 - data.low_52)
+        if data.cotacao and data.low_52 and data.high_52 and (data.high_52 - data.low_52) != 0
+        else None
+    )
+    termometro = termometro_margem(_margem_val)
+    renderer.render_fii(data.ticker, data.cotacao, tetos, idx, termometro=termometro, nome=data.nome)
+    return True
+
+
 @app.command()
 def main(
     ticker: str,
     json: Annotated[bool, typer.Option("--json")] = False,
     plain: Annotated[bool, typer.Option("--plain")] = False,
+    etf: Annotated[bool, typer.Option("--etf")] = False,
+    fii: Annotated[bool, typer.Option("--fii")] = False,
 ):
     """Consulta preço teto de um ativo (ação BR/US ou FII). Use 'indices' para ver CDI e IPCA."""
     ticker = ticker.upper()
@@ -46,29 +94,21 @@ def main(
 
     renderer = _get_renderer(json, plain)
 
+    if etf and fii:
+        raise typer.BadParameter("Use apenas uma flag entre --etf e --fii.")
+
+    if etf:
+        _render_etf(ticker, renderer)
+        return
+
+    if fii:
+        _render_fii(ticker, renderer)
+        return
+
     # Tenta como FII se termina em 11
     if _is_fii(ticker):
         try:
-            data = fetch_fii(ticker)
-            idx = fetch_indices_br()
-            indice_base = idx.melhor_indice
-            div_anual = (data.cotacao * data.dividend_yield / 100) if data.dividend_yield and data.cotacao else None
-            tetos = {
-                "teto_por_dy": teto_por_dy(div_anual, indice_base) if data.cotacao else None,
-                "teto_bazin": teto_bazin(data.dividendo_estimado, indice_base),
-                "vpa": data.vpa,
-                "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
-            }
-            if _todos_none(tetos):
-                typer.echo(f"{ticker} — cálculo de preço teto não disponível para este ativo.")
-                return
-            _margem_val = (
-                (data.cotacao - data.low_52) / (data.high_52 - data.low_52)
-                if data.cotacao and data.low_52 and data.high_52 and (data.high_52 - data.low_52) != 0
-                else None
-            )
-            termometro = termometro_margem(_margem_val)
-            renderer.render_fii(data.ticker, data.cotacao, tetos, idx, termometro=termometro, nome=data.nome)
+            _render_fii(ticker, renderer)
             return
         except Exception:
             pass  # fallback para ação BR
