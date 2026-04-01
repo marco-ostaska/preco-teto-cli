@@ -7,11 +7,16 @@ console = Console()
 
 def _teto_row(label: str, valor: float | None, cotacao: float | None) -> tuple:
     if valor is None:
-        return label, "—", ""
+        return label, "—", "", ""
     fmt = f"R$ {valor:.2f}" if cotacao and cotacao > 1 else f"$ {valor:.2f}"
+    if cotacao:
+        pct = (valor - cotacao) / cotacao * 100
+        pct_str = f"{pct:+.2f}%"
+    else:
+        pct_str = ""
     if cotacao and valor >= cotacao:
-        return label, f"[green]{fmt}[/green]", "[green]✓[/green]"
-    return label, f"[red]{fmt}[/red]", "[red]✗[/red]"
+        return label, f"[green]{fmt}[/green]", f"[green]{pct_str}[/green]", "[green]✓[/green]"
+    return label, f"[red]{fmt}[/red]", f"[red]{pct_str}[/red]", "[red]✗[/red]"
 
 
 def _title(ticker, nome, moeda, cotacao):
@@ -24,6 +29,7 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
     t = Table(title=_title(ticker, nome, moeda, cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
+    t.add_column("Potencial", justify="right")
     t.add_column("")
 
     labels = {
@@ -49,6 +55,7 @@ def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
     t = Table(title=_title(ticker, nome, "R$", cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
+    t.add_column("Potencial", justify="right")
     t.add_column("")
     t.add_row(*_teto_row("Teto por DY  (heurística)", tetos.get("teto_por_dy"), cotacao))
     t.add_row(*_teto_row("Teto Bazin   (proventos)", tetos.get("teto_bazin"), cotacao))
@@ -62,6 +69,7 @@ def render_etf(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
     t = Table(title=_title(ticker, nome, "R$", cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
+    t.add_column("Potencial", justify="right")
     t.add_column("")
     t.add_row(*_teto_row("Teto PL (-6%)", tetos.get("teto_pl"), cotacao))
     t.add_row(*_teto_row("PL por Cota", tetos.get("pl_cota"), cotacao))
