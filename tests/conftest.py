@@ -75,6 +75,30 @@ FIISCOM_HTML = """
       <p><b>151,30</b></p><p>Val. Patrimonial p/Cota</p>
     </div>
   </div>
+  <div class="yieldChart__table__bloco yieldChart__table__bloco--rendimento">
+    <div class="table__linha">Rendimento</div>
+    <div class="table__linha">31.03.2026</div>
+    <div class="table__linha">15.04.2026</div>
+    <div class="table__linha">R$ 142,50</div>
+    <div class="table__linha">0,78%</div>
+    <div class="table__linha">R$ 1,10</div>
+  </div>
+  <div class="yieldChart__table__bloco yieldChart__table__bloco--rendimento">
+    <div class="table__linha">Rendimento</div>
+    <div class="table__linha">27.02.2026</div>
+    <div class="table__linha">13.03.2026</div>
+    <div class="table__linha">R$ 143,00</div>
+    <div class="table__linha">0,77%</div>
+    <div class="table__linha">R$ 1,10</div>
+  </div>
+  <div class="yieldChart__table__bloco yieldChart__table__bloco--rendimento">
+    <div class="table__linha">Rendimento</div>
+    <div class="table__linha">30.01.2026</div>
+    <div class="table__linha">13.02.2026</div>
+    <div class="table__linha">R$ 144,00</div>
+    <div class="table__linha">0,76%</div>
+    <div class="table__linha">R$ 1,10</div>
+  </div>
 </body></html>
 """
 

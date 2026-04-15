@@ -2,7 +2,14 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 from dataclasses import dataclass
+from datetime import datetime
 import yfinance as yf
+
+MESES_PT = {
+    "01": "Jan", "02": "Fev", "03": "Mar", "04": "Abr",
+    "05": "Mai", "06": "Jun", "07": "Jul", "08": "Ago",
+    "09": "Set", "10": "Out", "11": "Nov", "12": "Dez",
+}
 
 
 class FiisComService:
@@ -61,6 +68,9 @@ class FiisComService:
                     pass
 
         dividendos = []
+        ultimo_dividendo = None
+        data_base_dividendo = None
+        dy_mensal_html = None
         for bloco in soup.select(".yieldChart__table__bloco--rendimento"):
             linhas = bloco.find_all("div", class_="table__linha")
             if len(linhas) >= 5:
@@ -69,6 +79,20 @@ class FiisComService:
                     dividendos.append(rend)
                 except Exception:
                     pass
+                # Primeiro bloco = mais recente
+                if ultimo_dividendo is None:
+                    try:
+                        ultimo_dividendo = float(linhas[-1].get_text(strip=True).replace("R$", "").replace(",", ".").strip())
+                    except Exception:
+                        pass
+                    try:
+                        data_base_dividendo = linhas[1].get_text(strip=True)  # DD.MM.YYYY
+                    except Exception:
+                        pass
+                    try:
+                        dy_mensal_html = float(linhas[-2].get_text(strip=True).replace(",", ".").replace("%", "").strip())
+                    except Exception:
+                        pass
 
         return {
             "nome": nome,
@@ -76,6 +100,9 @@ class FiisComService:
             "vpa": vpa,
             "dy_html": dy_html,
             "dividendos": dividendos,
+            "ultimo_dividendo": ultimo_dividendo,
+            "data_base_dividendo": data_base_dividendo,
+            "dy_mensal_html": dy_mensal_html,
         }
 
     @property
@@ -108,6 +135,26 @@ class FiisComService:
         except Exception:
             return None
 
+    @property
+    def ultimo_dividendo(self) -> float | None:
+        return self._dados.get("ultimo_dividendo")
+
+    @property
+    def mes_ano_dividendo(self) -> str | None:
+        data = self._dados.get("data_base_dividendo")
+        if not data:
+            return None
+        try:
+            partes = data.split(".")
+            mes = MESES_PT.get(partes[1], partes[1])
+            return f"{mes}/{partes[2]}"
+        except Exception:
+            return None
+
+    @property
+    def dy_mensal(self) -> float | None:
+        return self._dados.get("dy_mensal_html")
+
 
 @dataclass
 class FiiData:
@@ -118,6 +165,9 @@ class FiiData:
     pvp: float | None
     dividend_yield: float | None   # percentual (ex: 17.01 = 17.01%) — formato direto do HTML
     dividendo_estimado: float | None  # R$/ano estimado (não percentual)
+    ultimo_dividendo: float | None = None      # R$ do último rendimento
+    mes_ano_dividendo: str | None = None       # ex: "Mar/2026"
+    dy_mensal: float | None = None             # DY mensal (%) do último dividendo
     low_52: float | None = None
     high_52: float | None = None
 
@@ -148,6 +198,11 @@ def fetch_fii(ticker: str) -> FiiData:
     vpa = svc.vpa
     pvp = round(cotacao / vpa, 2) if cotacao and vpa else None
 
+    # Dados do scraper
+    ultimo_dividendo = svc.ultimo_dividendo
+    mes_ano_dividendo = svc.mes_ano_dividendo
+    dy_mensal = svc.dy_mensal
+
     low_52 = None
     high_52 = None
     try:
@@ -165,6 +220,22 @@ def fetch_fii(ticker: str) -> FiiData:
             low_52 = hist_low
         if high_is_invalid:
             high_52 = hist_high
+
+        # Fallback yfinance para último dividendo
+        if ultimo_dividendo is None:
+            last_val = yf_info.get("lastDividendValue")
+            last_ts = yf_info.get("lastDividendDate")
+            if last_val and last_ts:
+                ultimo_dividendo = round(last_val, 2)
+                try:
+                    mes_ano_dividendo = datetime.fromtimestamp(last_ts).strftime("%b/%Y")
+                    # Converter abreviação inglesa para portuguesa
+                    mes_en = datetime.fromtimestamp(last_ts).strftime("%m")
+                    mes_ano_dividendo = f"{MESES_PT.get(mes_en, mes_en)}/{datetime.fromtimestamp(last_ts).year}"
+                except Exception:
+                    mes_ano_dividendo = None
+            if dy_mensal is None and ultimo_dividendo and cotacao and cotacao > 0:
+                dy_mensal = round(ultimo_dividendo / cotacao * 100, 2)
     except Exception:
         pass
 
@@ -176,6 +247,9 @@ def fetch_fii(ticker: str) -> FiiData:
         pvp=pvp,
         dividend_yield=svc.dividend_yield,
         dividendo_estimado=svc.dividendo_estimado,
+        ultimo_dividendo=ultimo_dividendo,
+        mes_ano_dividendo=mes_ano_dividendo,
+        dy_mensal=dy_mensal,
         low_52=low_52,
         high_52=high_52,
     )

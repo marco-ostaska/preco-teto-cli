@@ -50,6 +50,9 @@ def test_cli_render_fii_inclui_teto_bazin(mocker):
         pvp=0.94,
         dividend_yield=17.01,
         dividendo_estimado=14.52,
+        ultimo_dividendo=1.10,
+        mes_ano_dividendo="Mar/2026",
+        dy_mensal=0.78,
         low_52=140.0,
         high_52=160.0,
     )
@@ -162,6 +165,9 @@ def test_cli_flag_fii_forca_fluxo_fii(mocker):
         pvp=0.95,
         dividend_yield=12.0,
         dividendo_estimado=12.5,
+        ultimo_dividendo=None,
+        mes_ano_dividendo=None,
+        dy_mensal=None,
         low_52=90.0,
         high_52=110.0,
     )

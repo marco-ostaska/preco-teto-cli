@@ -51,7 +51,8 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
         console.print(f"Fed Funds: {indices.fed_funds}%   CPI: {indices.cpi}%" + (f"   Termômetro: {termometro}" if termometro else ""))
 
 
-def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None):
+def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None,
+               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None):
     t = Table(title=_title(ticker, nome, "R$", cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
@@ -62,7 +63,12 @@ def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
     t.add_row(*_teto_row("VPA", tetos.get("vpa"), cotacao))
     t.add_row(*_teto_row("Teto Margem  (52w high/low)", tetos.get("teto_margem"), cotacao))
     console.print(t)
-    console.print(f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%" + (f"   Termômetro: {termometro}" if termometro else ""))
+    footer = f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%"
+    if ultimo_dividendo is not None and mes_ano_dividendo is not None:
+        footer += f"   Último div: R$ {ultimo_dividendo:.2f} ({mes_ano_dividendo}) DY: {dy_mensal:.2f}%" if dy_mensal else f"   Último div: R$ {ultimo_dividendo:.2f} ({mes_ano_dividendo})"
+    if termometro:
+        footer += f"   Termômetro: {termometro}"
+    console.print(footer)
 
 
 def render_etf(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None):

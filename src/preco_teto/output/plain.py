@@ -32,7 +32,8 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
         print(f"Fed Funds: {indices.fed_funds}%  CPI: {indices.cpi}%" + (f"  Termômetro: {termometro}" if termometro else ""))
 
 
-def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None):
+def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
+               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None):
     print(_header(ticker, nome, cotacao, "R$"))
     print("-" * 46)
     for key, label in [
@@ -44,6 +45,9 @@ def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None):
         v = tetos.get(key)
         mark = "OK" if (v and cotacao and v >= cotacao) else "X" if v else ""
         print(f"{label:<30} {_fmt(v, True):>12}  {mark}")
+    if ultimo_dividendo is not None and mes_ano_dividendo is not None:
+        dy_str = f"  DY: {dy_mensal:.2f}%" if dy_mensal else ""
+        print(f"Último div: R$ {ultimo_dividendo:.2f} ({mes_ano_dividendo}){dy_str}")
     if termometro:
         print(f"Termômetro: {termometro}")
 

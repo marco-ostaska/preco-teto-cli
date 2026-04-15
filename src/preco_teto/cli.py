@@ -73,7 +73,13 @@ def _render_fii(ticker: str, renderer) -> bool:
         else None
     )
     termometro = termometro_margem(_margem_val)
-    renderer.render_fii(data.ticker, data.cotacao, tetos, idx, termometro=termometro, nome=data.nome)
+    renderer.render_fii(
+        data.ticker, data.cotacao, tetos, idx,
+        termometro=termometro, nome=data.nome,
+        ultimo_dividendo=data.ultimo_dividendo,
+        mes_ano_dividendo=data.mes_ano_dividendo,
+        dy_mensal=data.dy_mensal,
+    )
     return True
 
 
