@@ -8,9 +8,10 @@ dependencies = [
     "yfinance",
     "pandas",
     "scipy",
-    "requests",
+    "requests>=2.33.0",
     "beautifulsoup4",
     "python-dateutil",
+    "pygments>=2.20.0",
 ]
 
 [project.scripts]
