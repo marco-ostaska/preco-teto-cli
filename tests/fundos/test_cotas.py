@@ -22,10 +22,14 @@ def _make_zip(csv_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
+from urllib.parse import urlparse
+
+
 def test_zip_url_format():
     url = _zip_url(2024, 1)
     assert "inf_diario_fi_202401.zip" in url
-    assert url.startswith("https://dados.cvm.gov.br")
+    parsed = urlparse(url)
+    assert parsed.hostname == "dados.cvm.gov.br"
 
 
 def test_zip_filename():
