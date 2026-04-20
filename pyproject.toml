@@ -25,7 +25,7 @@ build-backend = "hatchling.build"
 packages = ["src/preco_teto"]
 
 [dependency-groups]
-dev = ["pytest", "pytest-mock"]
+dev = ["pytest>=9.0.3", "pytest-mock"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
