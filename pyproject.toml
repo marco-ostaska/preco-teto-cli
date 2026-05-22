@@ -12,6 +12,9 @@ dependencies = [
     "beautifulsoup4",
     "python-dateutil",
     "pygments>=2.20.0",
+    "curl-cffi>=0.15.0",
+    "idna>=3.15",
+    "urllib3>=2.7.0",
 ]
 
 [project.scripts]
