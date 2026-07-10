@@ -14,6 +14,8 @@ def test_cli_render_acao_envia_nome_para_renderer(mocker):
         is_br=True,
         cotacao=58.20,
         dividend_rate=3.60,
+        dividend_yield=6.19,
+        dy_medio=24.74,
         dividendo_medio=3.60,
         lpa=5.50,
         vpa=32.00,
@@ -27,6 +29,8 @@ def test_cli_render_acao_envia_nome_para_renderer(mocker):
         previous_close=57.80,
         low_52=20.0,
         high_52=60.0,
+        ultimo_dividendo=0.30,
+        mes_ano_dividendo="Dez/2024",
     )
     idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
     renderer = mocker.Mock()
@@ -39,6 +43,10 @@ def test_cli_render_acao_envia_nome_para_renderer(mocker):
 
     assert result.exit_code == 0
     assert renderer.render_acao.call_args.kwargs["nome"] == "Vale S.A."
+    assert renderer.render_acao.call_args.kwargs["dividend_yield"] == 6.19
+    assert renderer.render_acao.call_args.kwargs["dy_medio"] == 24.74
+    assert renderer.render_acao.call_args.kwargs["ultimo_dividendo"] == 0.30
+    assert renderer.render_acao.call_args.kwargs["mes_ano_dividendo"] == "Dez/2024"
 
 
 def test_cli_render_fii_inclui_teto_bazin(mocker):

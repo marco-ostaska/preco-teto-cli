@@ -67,6 +67,38 @@ def _dividendo_medio(dividends: pd.Series, dividend_rate: float | None) -> float
         return dividend_rate or None
 
 
+def _dy(dividendo_anual: float | None, cotacao: float | None) -> float | None:
+    """DY percentual (ex: 6.18 = 6.18%)."""
+    try:
+        if not dividendo_anual or not cotacao or cotacao <= 0:
+            return None
+        return round(dividendo_anual / cotacao * 100, 2)
+    except Exception:
+        return None
+
+
+def _ultimo_dividendo(dividends: pd.Series) -> tuple[float | None, str | None]:
+    """Ultimo dividendo pago e mes/ano, se houver serie historica."""
+    try:
+        if dividends is None or dividends.empty:
+            return None, None
+        dividends = dividends.copy()
+        dividends.index = pd.to_datetime(dividends.index)
+        last_date = dividends.index.max()
+        last_value = float(dividends.loc[last_date])
+        mes_pt = MESES_PT.get(last_date.strftime("%m"), last_date.strftime("%b"))
+        return round(last_value, 2), f"{mes_pt}/{last_date.year}"
+    except Exception:
+        return None, None
+
+
+MESES_PT = {
+    "01": "Jan", "02": "Fev", "03": "Mar", "04": "Abr",
+    "05": "Mai", "06": "Jun", "07": "Jul", "08": "Ago",
+    "09": "Set", "10": "Out", "11": "Nov", "12": "Dez",
+}
+
+
 @dataclass
 class AcaoData:
     ticker: str
@@ -74,6 +106,8 @@ class AcaoData:
     is_br: bool
     cotacao: float | None
     dividend_rate: float | None
+    dividend_yield: float | None   # DY atual (%) derivado de dividend_rate / cotacao
+    dy_medio: float | None          # DY medio 3a (%) derivado de dividendo_medio / cotacao
     dividendo_medio: float | None   # média anual 3 anos (ou fallback dividend_rate)
     lpa: float | None
     vpa: float | None
@@ -87,6 +121,8 @@ class AcaoData:
     previous_close: float | None = None
     low_52: float | None = None
     high_52: float | None = None
+    ultimo_dividendo: float | None = None
+    mes_ano_dividendo: str | None = None
 
 
 def fetch_acao(ticker: str) -> AcaoData:
@@ -118,6 +154,9 @@ def fetch_acao(ticker: str) -> AcaoData:
 
     dividend_rate = info.get("dividendRate")
     div_medio = _dividendo_medio(dividends, dividend_rate)
+    dy_atual = _dy(dividend_rate, cotacao)
+    dy_medio = _dy(div_medio, cotacao)
+    ultimo_dividendo, mes_ano_dividendo = _ultimo_dividendo(dividends)
 
     return AcaoData(
         ticker=ticker,
@@ -125,6 +164,8 @@ def fetch_acao(ticker: str) -> AcaoData:
         is_br=is_br,
         cotacao=cotacao,
         dividend_rate=dividend_rate,
+        dividend_yield=dy_atual,
+        dy_medio=dy_medio,
         dividendo_medio=div_medio,
         lpa=info.get("trailingEps"),
         vpa=info.get("bookValue"),
@@ -138,4 +179,6 @@ def fetch_acao(ticker: str) -> AcaoData:
         previous_close=info.get("previousClose") or info.get("regularMarketPreviousClose"),
         low_52=info.get("fiftyTwoWeekLow") or hist_low_52,
         high_52=info.get("fiftyTwoWeekHigh") or hist_high_52,
+        ultimo_dividendo=ultimo_dividendo,
+        mes_ano_dividendo=mes_ano_dividendo,
     )

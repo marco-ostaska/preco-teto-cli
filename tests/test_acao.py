@@ -129,3 +129,48 @@ def test_fetch_acao_usa_history_como_fallback_para_52_semanas(mock_cls, mock_yf_
     data = fetch_acao("VALE3")
     assert data.low_52 == pytest.approx(float(mock_adj_close["Close"].min()))
     assert data.high_52 == pytest.approx(float(mock_adj_close["Close"].max()))
+
+
+def test_dividend_yield_atual_calculado(mock_dividends_3y, mock_yf_info_br, mock_adj_close, mocker):
+    """DY atual deve ser dividend_rate / cotacao * 100."""
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = mock_yf_info_br  # dividendRate=3.60, currentPrice=58.20
+    mock_ticker.history.return_value = mock_adj_close
+    mock_ticker.income_stmt = None
+    mock_ticker.dividends = mock_dividends_3y
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.acao import fetch_acao
+    data = fetch_acao("VALE3")
+    # 3.60 / 58.20 * 100 = 6.1856...
+    assert data.dividend_yield == pytest.approx(6.19, rel=1e-2)
+
+
+def test_dy_medio_calculado(mock_dividends_3y, mock_yf_info_br, mock_adj_close, mocker):
+    """DY medio deve ser dividendo_medio / cotacao * 100."""
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = mock_yf_info_br
+    mock_ticker.history.return_value = mock_adj_close
+    mock_ticker.income_stmt = None
+    mock_ticker.dividends = mock_dividends_3y
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.acao import fetch_acao
+    data = fetch_acao("VALE3")
+    # 14.40 / 58.20 * 100 = 24.742...
+    assert data.dy_medio == pytest.approx(24.74, rel=1e-2)
+
+
+def test_ultimo_dividendo_exposto(mock_dividends_3y, mock_yf_info_br, mock_adj_close, mocker):
+    """Deve expor ultimo dividendo e mes/ano da serie historica."""
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = mock_yf_info_br
+    mock_ticker.history.return_value = mock_adj_close
+    mock_ticker.income_stmt = None
+    mock_ticker.dividends = mock_dividends_3y
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.acao import fetch_acao
+    data = fetch_acao("VALE3")
+    assert data.ultimo_dividendo == 1.40
+    assert data.mes_ano_dividendo == "Dez/2023"

@@ -10,7 +10,7 @@ def _header(ticker, nome, cotacao, moeda):
     return f"{titulo}  {moeda} {cotacao:.2f}"
 
 
-def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None):
+def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, ultimo_dividendo=None, mes_ano_dividendo=None):
     moeda = "R$" if is_br else "$"
     print(_header(ticker, nome, cotacao, moeda))
     print("-" * 46)
@@ -30,6 +30,11 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
         print(f"CDI: {indices.cdi}%  IPCA: {indices.ipca}%" + (f"  Termômetro: {termometro}" if termometro else ""))
     else:
         print(f"Fed Funds: {indices.fed_funds}%  CPI: {indices.cpi}%" + (f"  Termômetro: {termometro}" if termometro else ""))
+
+    if ultimo_dividendo is not None and mes_ano_dividendo is not None:
+        moeda = "R$" if is_br else "$"
+        dy_str = f"  DY: {dividend_yield:.2f}%" if dividend_yield else ""
+        print(f"Último div: {moeda} {ultimo_dividendo:.2f} ({mes_ano_dividendo}){dy_str}")
 
 
 def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,

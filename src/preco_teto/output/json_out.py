@@ -1,13 +1,17 @@
 import json
 
 
-def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None):
+def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, ultimo_dividendo=None, mes_ano_dividendo=None):
     print(json.dumps({
         "ticker": ticker,
         "nome": nome,
         "cotacao": cotacao,
         "is_br": is_br,
         "tetos": tetos,
+        "dividend_yield": dividend_yield,
+        "dy_medio": dy_medio,
+        "ultimo_dividendo": ultimo_dividendo,
+        "mes_ano_dividendo": mes_ano_dividendo,
         "termometro": termometro,
         "indices": {
             "cdi": getattr(indices, "cdi", None),

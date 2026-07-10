@@ -156,7 +156,14 @@ def main(
         else None
     )
     termometro = termometro_margem(_margem_val)
-    renderer.render_acao(data.ticker, data.cotacao, data.is_br, tetos, idx, termometro=termometro, nome=data.nome)
+    renderer.render_acao(
+        data.ticker, data.cotacao, data.is_br, tetos, idx,
+        termometro=termometro, nome=data.nome,
+        dividend_yield=data.dividend_yield,
+        dy_medio=data.dy_medio,
+        ultimo_dividendo=data.ultimo_dividendo,
+        mes_ano_dividendo=data.mes_ano_dividendo,
+    )
 
 
 def _indices(
