@@ -7,7 +7,7 @@ from preco_teto.services.fii import fetch_fii
 from preco_teto.services.referencia import fetch_indices_br, fetch_indices_us
 from preco_teto.formulas import (
     teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf,
-    teto_margem, termometro_margem
+    teto_margem, termometro_margem, p_fcf, media_ponderada_renorm
 )
 
 app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
@@ -49,7 +49,24 @@ def _render_etf(ticker: str, renderer) -> bool:
         else None
     )
     termometro = termometro_margem(_margem_val)
-    renderer.render_etf(data.ticker, data.cotacao, tetos, idx, termometro=termometro, nome=data.nome)
+    p_fcf_agg = peg_agg = cov_p = cov_peg = None
+    if data.cnpj == "":
+        pares_p = []
+        pares_peg = []
+        for h in data.holdings:
+            v = p_fcf(h.price, h.free_cashflow, h.shares_outstanding)
+            if v is not None:
+                pares_p.append((h.weight, v))
+            if h.peg_ratio is not None:
+                pares_peg.append((h.weight, h.peg_ratio))
+        p_fcf_agg, cov_p = media_ponderada_renorm(pares_p)
+        peg_agg, cov_peg = media_ponderada_renorm(pares_peg)
+    renderer.render_etf(
+        data.ticker, data.cotacao, tetos, idx,
+        termometro=termometro, nome=data.nome,
+        p_fcf_agregado=p_fcf_agg, peg_agregado=peg_agg,
+        cobertura_p_fcf=cov_p, cobertura_peg=cov_peg,
+    )
     return True
 
 

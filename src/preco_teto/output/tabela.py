@@ -2,6 +2,8 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 
+from preco_teto.formulas import sinal_cobertura, sinal_p_fcf, sinal_peg
+
 console = Console()
 
 
@@ -76,7 +78,10 @@ def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
     console.print(footer)
 
 
-def render_etf(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None):
+def render_etf(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None,
+               p_fcf_agregado=None, peg_agregado=None, cobertura_p_fcf=None, cobertura_peg=None):
+    console.print()
+    console.print()
     t = Table(title=_title(ticker, nome, "R$", cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
@@ -86,7 +91,60 @@ def render_etf(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
     t.add_row(*_teto_row("PL por Cota", tetos.get("pl_cota"), cotacao))
     t.add_row(*_teto_row("Teto Margem (52w high/low)", tetos.get("teto_margem"), cotacao))
     console.print(t)
-    console.print(f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%" + (f"   Termômetro: {termometro}" if termometro else ""))
+    _render_etf_multiplos(p_fcf_agregado, peg_agregado, cobertura_p_fcf, cobertura_peg)
+    footer = f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%"
+    if termometro:
+        footer += f"   Termômetro: {termometro}"
+    console.print(footer)
+
+
+def _color(texto: str, sinal: str) -> str:
+    return f"[{sinal}]{texto}[/{sinal}]"
+
+
+def _render_etf_multiplos(p_fcf_agregado, peg_agregado, cobertura_p_fcf, cobertura_peg):
+    if p_fcf_agregado is None and peg_agregado is None:
+        return
+
+    coberturas = [c for c in (cobertura_p_fcf, cobertura_peg) if c is not None]
+    if coberturas and min(coberturas) < 0.70:
+        nivel = "baixa" if min(coberturas) < 0.50 else "moderada"
+        console.print(
+            f"[yellow]Aviso: cobertura {nivel} nos top holdings "
+            f"— múltiplos são aproximação, não o fundo inteiro.[/yellow]"
+        )
+
+    m = Table(title="Múltiplos (top holdings)", box=box.SIMPLE_HEAVY)
+    m.add_column("Métrica", style="bold")
+    m.add_column("Valor", justify="right")
+    m.add_column("Cobertura", justify="right")
+    m.add_column("")
+
+    if p_fcf_agregado is not None:
+        s_val = sinal_p_fcf(p_fcf_agregado)
+        cov = cobertura_p_fcf
+        s_cov = sinal_cobertura(cov) if cov is not None else None
+        cov_str = _color(f"{cov * 100:.1f}%", s_cov) if s_cov is not None else "—"
+        mark = {"green": "✓", "yellow": "~", "red": "✗"}[s_val]
+        m.add_row(
+            "P/FCF",
+            _color(f"{p_fcf_agregado:.2f}", s_val),
+            cov_str,
+            _color(mark, s_val),
+        )
+    if peg_agregado is not None:
+        s_val = sinal_peg(peg_agregado)
+        cov = cobertura_peg
+        s_cov = sinal_cobertura(cov) if cov is not None else None
+        cov_str = _color(f"{cov * 100:.1f}%", s_cov) if s_cov is not None else "—"
+        mark = {"green": "✓", "yellow": "~", "red": "✗"}[s_val]
+        m.add_row(
+            "PEG",
+            _color(f"{peg_agregado:.2f}", s_val),
+            cov_str,
+            _color(mark, s_val),
+        )
+    console.print(m)
 
 
 def render_indices(br):

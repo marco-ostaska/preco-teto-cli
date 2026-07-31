@@ -43,7 +43,7 @@ def test_teto_por_lucro_zero_range():
 
 
 # --- remaining formulas ---
-from preco_teto.formulas import teto_por_dy, teto_bazin, teto_graham, teto_dcf, teto_margem, termometro_margem
+from preco_teto.formulas import teto_por_dy, teto_bazin, teto_graham, teto_dcf, teto_margem, termometro_margem, p_fcf, media_ponderada_renorm, sinal_peg, sinal_p_fcf, sinal_cobertura
 
 
 def test_teto_por_dy_usa_dividendo_medio():
@@ -177,3 +177,56 @@ def test_termometro_margem():
     assert termometro_margem(0.80) == "Otimista"
     assert termometro_margem(0.95) == "Euforia"
     assert termometro_margem(None) is None
+
+
+def test_p_fcf_happy():
+    # price 100, FCF 1e9, shares 1e8 → FCF/ação=10 → P/FCF=10
+    assert p_fcf(100.0, 1_000_000_000, 100_000_000) == pytest.approx(10.0)
+
+
+def test_p_fcf_fcf_nao_positivo():
+    assert p_fcf(100.0, 0, 100_000_000) is None
+    assert p_fcf(100.0, -1e9, 100_000_000) is None
+
+
+def test_p_fcf_shares_none_ou_zero():
+    assert p_fcf(100.0, 1e9, None) is None
+    assert p_fcf(100.0, 1e9, 0) is None
+
+
+def test_media_ponderada_renorm_dois_pesos():
+    media, cobertura = media_ponderada_renorm([(0.10, 20.0), (0.30, 40.0)])
+    # renorm: 0.10/0.40*20 + 0.30/0.40*40 = 5 + 30 = 35
+    assert media == pytest.approx(35.0)
+    assert cobertura == pytest.approx(0.40)
+
+
+def test_media_ponderada_renorm_ignora_peso_invalido():
+    media, cobertura = media_ponderada_renorm([(0.10, 20.0), (0.0, 99.0), (-0.1, 50.0)])
+    assert media == pytest.approx(20.0)
+    assert cobertura == pytest.approx(0.10)
+
+
+def test_media_ponderada_renorm_vazia():
+    media, cobertura = media_ponderada_renorm([])
+    assert media is None
+    assert cobertura == 0.0
+
+def test_sinal_peg_faixas():
+    assert sinal_peg(1.3) == "green"
+    assert sinal_peg(1.31) == "yellow"
+    assert sinal_peg(1.8) == "yellow"
+    assert sinal_peg(1.81) == "red"
+
+
+def test_sinal_p_fcf_faixas():
+    assert sinal_p_fcf(35) == "green"
+    assert sinal_p_fcf(35.01) == "yellow"
+    assert sinal_p_fcf(55) == "yellow"
+    assert sinal_p_fcf(55.01) == "red"
+
+
+def test_sinal_cobertura_faixas():
+    assert sinal_cobertura(0.70) == "green"
+    assert sinal_cobertura(0.50) == "yellow"
+    assert sinal_cobertura(0.499) == "red"

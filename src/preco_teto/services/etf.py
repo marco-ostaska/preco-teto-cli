@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 import io
 import zipfile
@@ -9,6 +9,16 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import yfinance as yf
+
+
+@dataclass
+class EtfHolding:
+    symbol: str
+    weight: float
+    price: float | None = None
+    free_cashflow: float | None = None
+    shares_outstanding: float | None = None
+    peg_ratio: float | None = None
 
 
 @dataclass
@@ -22,6 +32,7 @@ class EtfData:
     cotistas: int | None
     low_52: float | None
     high_52: float | None
+    holdings: list[EtfHolding] = field(default_factory=list)
 
 
 def _parse_brl_number(value: str | None) -> float | None:
@@ -104,6 +115,45 @@ def _history_low_high(history: pd.DataFrame) -> tuple[float | None, float | None
     return float(close.min()), float(close.max())
 
 
+def _holding_price(info: dict) -> float | None:
+    return info.get("currentPrice") or info.get("previousClose") or info.get("regularMarketPrice")
+
+
+def _fetch_holdings_us(etf_ticker) -> list[EtfHolding]:
+    holdings: list[EtfHolding] = []
+    try:
+        top = etf_ticker.funds_data.top_holdings
+        if top is None or getattr(top, "empty", True):
+            return []
+        for symbol, row in top.iterrows():
+            try:
+                weight = float(row["Holding Percent"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            price = free_cashflow = shares_outstanding = peg_ratio = None
+            try:
+                info = yf.Ticker(str(symbol)).info or {}
+                price = _holding_price(info)
+                free_cashflow = info.get("freeCashflow")
+                shares_outstanding = info.get("sharesOutstanding")
+                peg_ratio = info.get("pegRatio")
+            except Exception:
+                pass
+            holdings.append(
+                EtfHolding(
+                    symbol=str(symbol),
+                    weight=weight,
+                    price=price,
+                    free_cashflow=free_cashflow,
+                    shares_outstanding=shares_outstanding,
+                    peg_ratio=peg_ratio,
+                )
+            )
+    except Exception:
+        return []
+    return holdings
+
+
 def _fetch_etf_us(ticker: str) -> EtfData:
     t = yf.Ticker(ticker)
     info = t.info or {}
@@ -119,6 +169,7 @@ def _fetch_etf_us(ticker: str) -> EtfData:
         cotistas=None,
         low_52=info.get("fiftyTwoWeekLow") or hist_low,
         high_52=info.get("fiftyTwoWeekHigh") or hist_high,
+        holdings=_fetch_holdings_us(t),
     )
 
 

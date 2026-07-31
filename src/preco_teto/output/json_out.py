@@ -35,7 +35,8 @@ def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
     }, indent=2, ensure_ascii=False))
 
 
-def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None):
+def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None,
+               p_fcf_agregado=None, peg_agregado=None, cobertura_p_fcf=None, cobertura_peg=None):
     print(json.dumps({
         "ticker": ticker,
         "nome": nome,
@@ -43,6 +44,10 @@ def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None):
         "tetos": tetos,
         "termometro": termometro,
         "indices": {"cdi": indices.cdi, "ipca": indices.ipca},
+        "p_fcf_agregado": p_fcf_agregado,
+        "peg_agregado": peg_agregado,
+        "cobertura_p_fcf": cobertura_p_fcf,
+        "cobertura_peg": cobertura_peg,
     }, indent=2, ensure_ascii=False))
 
 

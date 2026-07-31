@@ -1,3 +1,6 @@
+from preco_teto.formulas import sinal_p_fcf, sinal_peg
+
+
 def _fmt(valor, is_br):
     if valor is None:
         return "—"
@@ -57,7 +60,10 @@ def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
         print(f"Termômetro: {termometro}")
 
 
-def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None):
+def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None,
+               p_fcf_agregado=None, peg_agregado=None, cobertura_p_fcf=None, cobertura_peg=None):
+    print()
+    print()
     print(_header(ticker, nome, cotacao, "R$"))
     print("-" * 46)
     for key, label in [
@@ -68,8 +74,31 @@ def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None):
         v = tetos.get(key)
         mark = "OK" if (v and cotacao and v >= cotacao) else "X" if v else ""
         print(f"{label:<30} {_fmt(v, True):>12}  {mark}")
+
+    if p_fcf_agregado is not None or peg_agregado is not None:
+        coberturas = [c for c in (cobertura_p_fcf, cobertura_peg) if c is not None]
+        if coberturas and min(coberturas) < 0.70:
+            nivel = "baixa" if min(coberturas) < 0.50 else "moderada"
+            print(
+                f"Aviso: cobertura {nivel} nos top holdings "
+                f"— múltiplos são aproximação, não o fundo inteiro."
+            )
+        print("Múltiplos (top holdings)")
+        print("-" * 46)
+        _marks = {"green": "OK", "yellow": "~", "red": "X"}
+        if p_fcf_agregado is not None:
+            s = sinal_p_fcf(p_fcf_agregado)
+            cov = f"{cobertura_p_fcf * 100:.1f}%" if cobertura_p_fcf is not None else "—"
+            print(f"{'P/FCF':<30} {p_fcf_agregado:>12.2f}  cov {cov}  {_marks[s]}")
+        if peg_agregado is not None:
+            s = sinal_peg(peg_agregado)
+            cov = f"{cobertura_peg * 100:.1f}%" if cobertura_peg is not None else "—"
+            print(f"{'PEG':<30} {peg_agregado:>12.2f}  cov {cov}  {_marks[s]}")
+
+    footer = f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%"
     if termometro:
-        print(f"Termômetro: {termometro}")
+        footer += f"   Termômetro: {termometro}"
+    print(footer)
 
 
 def render_indices(br):

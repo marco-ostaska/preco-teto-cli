@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from typer.testing import CliRunner
 
+import pytest
+
 from preco_teto.cli import app
 
 
@@ -119,6 +121,7 @@ def test_cli_etf_sem_pl_mostra_somente_teto_margem(mocker):
         cotistas=None,
         low_52=91.30,
         high_52=136.43,
+        holdings=[],
     )
     idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
     renderer = mocker.Mock()
@@ -133,6 +136,47 @@ def test_cli_etf_sem_pl_mostra_somente_teto_margem(mocker):
     tetos = renderer.render_etf.call_args.args[2]
     assert tetos["teto_pl"] is None
     assert tetos["teto_margem"] is not None
+    assert renderer.render_etf.call_args.kwargs["p_fcf_agregado"] is None
+    assert renderer.render_etf.call_args.kwargs["peg_agregado"] is None
+
+
+def test_cli_etf_us_envia_p_fcf_e_peg_agregados(mocker):
+    holding = SimpleNamespace(
+        symbol="AAPL",
+        weight=0.10,
+        price=100.0,
+        free_cashflow=1_000_000_000,
+        shares_outstanding=100_000_000,
+        peg_ratio=2.0,
+    )
+    data = SimpleNamespace(
+        ticker="SPY",
+        nome="SPDR S&P 500 ETF",
+        cnpj="",
+        cotacao=500.0,
+        pl_cota=500.5,
+        pl_total=1e12,
+        cotistas=None,
+        low_52=400.0,
+        high_52=520.0,
+        holdings=[holding],
+    )
+    idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_etf", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["SPY", "--etf"])
+
+    assert result.exit_code == 0
+    kwargs = renderer.render_etf.call_args.kwargs
+    # P/FCF = 100 / (1e9/1e8) = 10; PEG = 2.0; cobertura = 0.10
+    assert kwargs["p_fcf_agregado"] == pytest.approx(10.0)
+    assert kwargs["peg_agregado"] == pytest.approx(2.0)
+    assert kwargs["cobertura_p_fcf"] == pytest.approx(0.10)
+    assert kwargs["cobertura_peg"] == pytest.approx(0.10)
 
 
 def test_cli_flag_etf_forca_fluxo_etf(mocker):

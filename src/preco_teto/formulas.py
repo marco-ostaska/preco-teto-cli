@@ -156,3 +156,62 @@ def termometro_margem(margem: float | None) -> str | None:
     if margem < 0.90:
         return "Otimista"
     return "Euforia"
+
+
+def p_fcf(
+    price: float | None,
+    free_cashflow: float | None,
+    shares_outstanding: float | None,
+) -> float | None:
+    """Preço / FCF por ação. None se faltar dado, shares<=0 ou fcf<=0."""
+    try:
+        if price is None or free_cashflow is None or shares_outstanding is None:
+            return None
+        if shares_outstanding <= 0 or free_cashflow <= 0:
+            return None
+        return round(price / (free_cashflow / shares_outstanding), 2)
+    except Exception:
+        return None
+
+
+def media_ponderada_renorm(
+    pares: list[tuple[float, float]],
+) -> tuple[float | None, float]:
+    """
+    Média ponderada renormalizada.
+    pares: (peso_original, valor); ignora peso<=0.
+    Retorna (média, cobertura) onde cobertura = Σ pesos originais usados.
+    """
+    validos = [(w, v) for w, v in pares if w is not None and v is not None and w > 0]
+    if not validos:
+        return None, 0.0
+    cobertura = sum(w for w, _ in validos)
+    media = sum(w * v for w, v in validos) / cobertura
+    return round(media, 2), round(cobertura, 6)
+
+
+def sinal_peg(peg: float) -> str:
+    """green ≤1.3 · yellow ≤1.8 · red >1.8"""
+    if peg <= 1.3:
+        return "green"
+    if peg <= 1.8:
+        return "yellow"
+    return "red"
+
+
+def sinal_p_fcf(valor: float) -> str:
+    """green ≤35 · yellow ≤55 · red >55"""
+    if valor <= 35:
+        return "green"
+    if valor <= 55:
+        return "yellow"
+    return "red"
+
+
+def sinal_cobertura(cobertura: float) -> str:
+    """cobertura em fração 0–1: green ≥70% · yellow ≥50% · red <50%"""
+    if cobertura >= 0.70:
+        return "green"
+    if cobertura >= 0.50:
+        return "yellow"
+    return "red"

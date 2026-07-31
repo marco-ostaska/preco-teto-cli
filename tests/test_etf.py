@@ -66,6 +66,7 @@ def test_fetch_etf_us_usa_yfinance_quando_statusinvest_nao_tem_cnpj(mock_get, mo
         "navPrice": 50.90,
     }
     mock_ticker.history.return_value = hist
+    mock_ticker.funds_data.top_holdings = pd.DataFrame(columns=["Name", "Holding Percent"])
     mocker.patch("yfinance.Ticker", return_value=mock_ticker)
 
     from preco_teto.services.etf import fetch_etf
@@ -79,3 +80,71 @@ def test_fetch_etf_us_usa_yfinance_quando_statusinvest_nao_tem_cnpj(mock_get, mo
     assert data.pl_cota == pytest.approx(50.90)
     assert data.low_52 == pytest.approx(49.10)
     assert data.high_52 == pytest.approx(52.30)
+    assert data.holdings == []
+
+
+@patch("requests.get")
+def test_fetch_etf_us_popula_holdings_de_top_holdings(mock_get, mocker):
+    mock_get.return_value.text = "<html><body><h1>SPY</h1></body></html>"
+    mock_get.return_value.raise_for_status = MagicMock()
+
+    top = pd.DataFrame(
+        {"Name": ["Apple Inc"], "Holding Percent": [0.06]},
+        index=pd.Index(["AAPL"], name="Symbol"),
+    )
+    hist = pd.DataFrame({"Close": [400.0, 410.0]})
+
+    spy = mocker.MagicMock()
+    spy.info = {
+        "shortName": "SPDR S&P 500 ETF",
+        "currentPrice": 500.0,
+        "fiftyTwoWeekLow": 400.0,
+        "fiftyTwoWeekHigh": 520.0,
+        "navPrice": 500.5,
+    }
+    spy.history.return_value = hist
+    spy.funds_data.top_holdings = top
+
+    aapl = mocker.MagicMock()
+    aapl.info = {
+        "currentPrice": 100.0,
+        "freeCashflow": 1_000_000_000,
+        "sharesOutstanding": 100_000_000,
+        "pegRatio": 2.5,
+    }
+
+    def ticker_factory(symbol):
+        return spy if symbol == "SPY" else aapl
+
+    mocker.patch("yfinance.Ticker", side_effect=ticker_factory)
+
+    from preco_teto.services.etf import fetch_etf
+
+    data = fetch_etf("SPY")
+
+    assert data.cnpj == ""
+    assert len(data.holdings) == 1
+    h = data.holdings[0]
+    assert h.symbol == "AAPL"
+    assert h.weight == pytest.approx(0.06)
+    assert h.price == pytest.approx(100.0)
+    assert h.free_cashflow == pytest.approx(1_000_000_000)
+    assert h.shares_outstanding == pytest.approx(100_000_000)
+    assert h.peg_ratio == pytest.approx(2.5)
+
+
+@patch("requests.get")
+def test_fetch_etf_us_sem_funds_data_retorna_holdings_vazios(mock_get, mocker):
+    mock_get.return_value.text = "<html><body><h1>XYZ</h1></body></html>"
+    mock_get.return_value.raise_for_status = MagicMock()
+
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = {"shortName": "XYZ ETF", "currentPrice": 10.0, "navPrice": 10.1}
+    mock_ticker.history.return_value = pd.DataFrame({"Close": [9.0, 10.0]})
+    type(mock_ticker).funds_data = property(lambda self: (_ for _ in ()).throw(RuntimeError("no funds")))
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.etf import fetch_etf
+
+    data = fetch_etf("XYZ")
+    assert data.holdings == []
