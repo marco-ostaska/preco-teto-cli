@@ -60,6 +60,41 @@ def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
         print(f"Termômetro: {termometro}")
 
 
+def render_etfbr(data, tetos, indices, termometro=None):
+    print()
+    print(f"{data.ticker}  R$ {data.cotacao:.2f}")
+    if data.nome:
+        print(data.nome)
+    print("-" * 46)
+    for key, label in [
+        ("pl_cota", "VP/cota"),
+        ("teto_nav", "Teto NAV"),
+        ("teto_margem", "Teto Margem (52w)"),
+    ]:
+        v = tetos.get(key)
+        mark = "OK" if (v and data.cotacao and v >= data.cotacao) else "X" if v else ""
+        print(f"{label:<30} {_fmt(v, True):>12}  {mark}")
+    premio = tetos.get("premio_desconto_pct")
+    if premio is not None:
+        print(f"{'Prêmio/desconto':<30} {premio:>+11.2f}%")
+    print("-" * 46)
+    linha1 = [f"CDI: {indices.cdi}%", f"IPCA: {indices.ipca}%"]
+    if termometro:
+        linha1.append(f"Termômetro: {termometro}")
+    if data.taxa_adm_pct is not None:
+        linha1.append(f"Taxa adm: {data.taxa_adm_pct:.2f}%")
+    print("   ".join(linha1))
+    if data.indice:
+        print(f"Índice: {data.indice}")
+    linha3 = []
+    if data.cotistas is not None:
+        linha3.append(f"Cotistas: {data.cotistas:,}".replace(",", "."))
+    if data.cnpj:
+        linha3.append(f"CNPJ: {data.cnpj}")
+    if linha3:
+        print("   ".join(linha3))
+
+
 def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None,
                p_fcf_agregado=None, peg_agregado=None, cobertura_p_fcf=None, cobertura_peg=None):
     print()

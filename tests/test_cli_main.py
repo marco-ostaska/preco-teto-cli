@@ -238,3 +238,57 @@ def test_cli_flag_fii_forca_fluxo_fii(mocker):
     etf_mock.assert_not_called()
     acao_mock.assert_not_called()
     assert renderer.render_fii.called
+
+
+def test_cli_etfbr_chama_fetch_e_render(mocker):
+    from preco_teto.services.etf_br import EtfBrData
+
+    data = EtfBrData(
+        ticker="DIVO11",
+        nome="IT NOW IDIV FUNDO DE ÍNDICE",
+        cotacao=128.24,
+        pl_cota=128.16,
+        premio_desconto_pct=0.06,
+        low_52=98.88,
+        high_52=142.00,
+        pl_total_mm=2250.16,
+        taxa_adm_pct=0.50,
+        cotistas=48778,
+        cnpj="13.416.245/0001-46",
+        indice="IDIV",
+    )
+    idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_etf_br", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["DIVO11", "--etfbr"])
+
+    assert result.exit_code == 0
+    assert renderer.render_etfbr.called
+    tetos = renderer.render_etfbr.call_args.args[1]
+    assert tetos["teto_nav"] == 128.16
+    assert tetos["premio_desconto_pct"] == 0.06
+
+
+def test_cli_etfbr_erro_mensagem_unica(mocker):
+    from preco_teto.services.etf_br import EtfBrFetchError
+
+    renderer = mocker.Mock()
+    mocker.patch("preco_teto.cli.fetch_etf_br", side_effect=EtfBrFetchError("falha"))
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["DIVO11", "--etfbr"])
+
+    assert result.exit_code == 0
+    assert "DIVO11 — não foi possível obter dados do ETF (etfsbrasil.com.br)." in result.output
+    renderer.render_etfbr.assert_not_called()
+
+
+def test_cli_etfbr_exclusivo_com_etf():
+    result = runner.invoke(app, ["DIVO11", "--etf", "--etfbr"])
+
+    assert result.exit_code != 0
+    assert "Use apenas uma flag entre --etf, --fii e --etfbr." in result.output

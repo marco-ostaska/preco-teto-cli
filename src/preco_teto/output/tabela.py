@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+import textwrap
+
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 from rich import box
 
 from preco_teto.formulas import sinal_cobertura, sinal_p_fcf, sinal_peg
@@ -24,6 +29,33 @@ def _teto_row(label: str, valor: float | None, cotacao: float | None) -> tuple:
 def _title(ticker, nome, moeda, cotacao):
     prefixo = f"{ticker} - {nome}" if nome else ticker
     return f"{prefixo}  {moeda} {cotacao:.2f}"
+
+
+def _print_cabecalho_ativo(ticker: str, nome: str | None, moeda: str, cotacao: float) -> None:
+    linha = Text()
+    linha.append(f"{ticker}  ", style="bold")
+    linha.append(f"{moeda} {cotacao:.2f}", style="bold")
+    console.print(linha)
+    if nome:
+        console.print(textwrap.fill(nome, width=72), style="dim")
+
+
+def _print_rodape_etfbr(data, indices, termometro=None) -> None:
+    linha1 = [f"CDI: {indices.cdi}%", f"IPCA: {indices.ipca}%"]
+    if termometro:
+        linha1.append(f"Termômetro: {termometro}")
+    if data.taxa_adm_pct is not None:
+        linha1.append(f"Taxa adm: {data.taxa_adm_pct:.2f}%")
+    console.print("   ".join(linha1))
+    if data.indice:
+        console.print(f"Índice: {data.indice}")
+    linha3 = []
+    if data.cotistas is not None:
+        linha3.append(f"Cotistas: {data.cotistas:,}".replace(",", "."))
+    if data.cnpj:
+        linha3.append(f"CNPJ: {data.cnpj}")
+    if linha3:
+        console.print("   ".join(linha3))
 
 
 def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, ultimo_dividendo=None, mes_ano_dividendo=None):
@@ -96,6 +128,31 @@ def render_etf(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
     if termometro:
         footer += f"   Termômetro: {termometro}"
     console.print(footer)
+
+
+def render_etfbr(data, tetos: dict, indices, termometro=None):
+    console.print()
+    _print_cabecalho_ativo(data.ticker, data.nome, "R$", data.cotacao)
+    t = Table(
+        box=box.SIMPLE_HEAVY,
+        show_header=True,
+        header_style="bold",
+        pad_edge=False,
+        padding=(0, 1),
+    )
+    t.add_column("Teto", style="bold", min_width=18)
+    t.add_column("Valor", justify="right", min_width=12)
+    t.add_column("Potencial", justify="right", min_width=10)
+    t.add_column("", min_width=3)
+    t.add_row(*_teto_row("VP/cota", tetos.get("pl_cota"), data.cotacao))
+    t.add_row(*_teto_row("Teto NAV", tetos.get("teto_nav"), data.cotacao))
+    premio = tetos.get("premio_desconto_pct")
+    if premio is not None:
+        cor = "green" if premio <= 0 else "red"
+        t.add_row("Prêmio/desconto", f"[{cor}]{premio:+.2f}%[/{cor}]", "", "")
+    t.add_row(*_teto_row("Teto Margem (52w)", tetos.get("teto_margem"), data.cotacao))
+    console.print(t)
+    _print_rodape_etfbr(data, indices, termometro)
 
 
 def _color(texto: str, sinal: str) -> str:

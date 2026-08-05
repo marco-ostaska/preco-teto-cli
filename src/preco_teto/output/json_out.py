@@ -51,6 +51,26 @@ def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None,
     }, indent=2, ensure_ascii=False))
 
 
+def render_etfbr(data, tetos, indices, termometro=None):
+    print(json.dumps({
+        "ticker": data.ticker,
+        "nome": data.nome,
+        "cotacao": data.cotacao,
+        "pl_cota": data.pl_cota,
+        "premio_desconto_pct": data.premio_desconto_pct,
+        "low_52": data.low_52,
+        "high_52": data.high_52,
+        "pl_total_mm": data.pl_total_mm,
+        "taxa_adm_pct": data.taxa_adm_pct,
+        "cotistas": data.cotistas,
+        "cnpj": data.cnpj,
+        "indice": data.indice,
+        "tetos": tetos,
+        "termometro": termometro,
+        "indices": {"cdi": indices.cdi, "ipca": indices.ipca},
+    }, indent=2, ensure_ascii=False))
+
+
 def render_indices(br):
     print(json.dumps({
         "br": {"cdi": br.cdi, "ipca": br.ipca},

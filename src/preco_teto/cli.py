@@ -3,6 +3,7 @@ import typer
 
 from preco_teto.services.acao import fetch_acao
 from preco_teto.services.etf import fetch_etf
+from preco_teto.services.etf_br import EtfBrFetchError, fetch_etf_br
 from preco_teto.services.fii import fetch_fii
 from preco_teto.services.referencia import fetch_indices_br, fetch_indices_us
 from preco_teto.formulas import (
@@ -70,6 +71,31 @@ def _render_etf(ticker: str, renderer) -> bool:
     return True
 
 
+def _render_etfbr(ticker: str, renderer) -> None:
+    try:
+        data = fetch_etf_br(ticker)
+    except EtfBrFetchError:
+        typer.echo(f"{ticker} — não foi possível obter dados do ETF (etfsbrasil.com.br).")
+        return
+    idx = fetch_indices_br()
+    tetos = {
+        "teto_nav": round(data.pl_cota, 2),
+        "pl_cota": round(data.pl_cota, 2),
+        "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
+        "premio_desconto_pct": round(data.premio_desconto_pct, 2),
+    }
+    if _todos_none({"teto_nav": tetos["teto_nav"], "teto_margem": tetos["teto_margem"]}):
+        typer.echo(f"{ticker} — não foi possível obter dados do ETF (etfsbrasil.com.br).")
+        return
+    _margem_val = (
+        (data.cotacao - data.low_52) / (data.high_52 - data.low_52)
+        if data.cotacao and data.low_52 and data.high_52 and (data.high_52 - data.low_52) != 0
+        else None
+    )
+    termometro = termometro_margem(_margem_val)
+    renderer.render_etfbr(data, tetos, idx, termometro=termometro)
+
+
 def _render_fii(ticker: str, renderer) -> bool:
     data = fetch_fii(ticker)
     idx = fetch_indices_br()
@@ -107,6 +133,7 @@ def main(
     plain: Annotated[bool, typer.Option("--plain")] = False,
     etf: Annotated[bool, typer.Option("--etf")] = False,
     fii: Annotated[bool, typer.Option("--fii")] = False,
+    etfbr: Annotated[bool, typer.Option("--etfbr")] = False,
 ):
     """Consulta preço teto de um ativo (ação BR/US ou FII). Use 'indices' para ver CDI e IPCA."""
     ticker = ticker.upper()
@@ -117,8 +144,12 @@ def main(
 
     renderer = _get_renderer(json, plain)
 
-    if etf and fii:
-        raise typer.BadParameter("Use apenas uma flag entre --etf e --fii.")
+    if sum([etf, fii, etfbr]) > 1:
+        raise typer.BadParameter("Use apenas uma flag entre --etf, --fii e --etfbr.")
+
+    if etfbr:
+        _render_etfbr(ticker, renderer)
+        return
 
     if etf:
         _render_etf(ticker, renderer)

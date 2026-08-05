@@ -196,3 +196,9 @@ def mock_dividends_1y():
 def mock_dividends_empty():
     """Sem histórico de dividendos."""
     return pd.Series([], dtype=float)
+
+
+@pytest.fixture
+def mock_etfsbrasil_divo11_html():
+    from pathlib import Path
+    return (Path(__file__).parent / "fixtures" / "etfsbrasil_divo11.html").read_text(encoding="utf-8")
