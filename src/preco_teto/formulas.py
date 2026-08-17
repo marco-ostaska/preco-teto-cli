@@ -85,6 +85,16 @@ def teto_graham(lpa: float | None, vpa: float | None) -> float | None:
         return None
 
 
+def teto_vpa_roe(vpa: float | None, roe: float | None, taxa: float | None) -> float | None:
+    """Teto pelo valor patrimonial e retorno sobre o patrimonio."""
+    try:
+        if vpa is None or roe is None or not taxa or vpa <= 0 or roe <= 0:
+            return None
+        return round(vpa * roe / taxa, 2)
+    except Exception:
+        return None
+
+
 def teto_dcf(
     free_cashflow: float | None,
     shares_outstanding: float | None,

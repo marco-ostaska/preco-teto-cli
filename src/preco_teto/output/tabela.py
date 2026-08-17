@@ -58,7 +58,7 @@ def _print_rodape_etfbr(data, indices, termometro=None) -> None:
         console.print("   ".join(linha3))
 
 
-def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, ultimo_dividendo=None, mes_ano_dividendo=None):
     moeda = "R$" if is_br else "$"
     t = Table(title=_title(ticker, nome, moeda, cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
@@ -72,12 +72,22 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
         "teto_bazin":     f"Teto Bazin      ({'CDI dinâmico' if is_br else 'Fed Funds dinâmico'})",
         "teto_graham":    "Teto Graham     (LPA×VPA)",
         "teto_dcf":       "Teto DCF        (FCL/CAPM)",
+        "teto_vpa_roe_taxa": "Teto VPA/ROE    (CDI/Fed Funds)",
+        "teto_vpa_roe_inflacao": "Teto VPA/ROE    (IPCA/CPI)",
         "teto_margem":    "Teto Margem     (52w high/low)",
     }
     for key, label in labels.items():
         t.add_row(*_teto_row(label, tetos.get(key), cotacao))
 
     console.print(t)
+
+    if roe is not None:
+        console.print(f"ROE: {roe:.2f}%")
+    if roe_medio_5a is not None:
+        tendencia = f"{roe_tendencia:+.2f} p.p./ano" if roe_tendencia is not None else "—"
+        confianca = f"{roe_r2:.2f}" if roe_r2 is not None else "—"
+        ajustado = f"{roe_ajustado:.2f}%" if roe_ajustado is not None else "—"
+        console.print(f"ROE médio: {roe_medio_5a:.2f}%   Ajustado: {ajustado}   Tendência: {tendencia}   R²: {confianca}")
 
     if is_br:
         console.print(f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%" + (f"   Termômetro: {termometro}" if termometro else ""))

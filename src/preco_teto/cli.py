@@ -8,7 +8,7 @@ from preco_teto.services.fii import fetch_fii
 from preco_teto.services.referencia import fetch_indices_br, fetch_indices_us
 from preco_teto.formulas import (
     teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf,
-    teto_margem, termometro_margem, p_fcf, media_ponderada_renorm
+    teto_margem, teto_vpa_roe, termometro_margem, p_fcf, media_ponderada_renorm
 )
 
 app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
@@ -187,6 +187,8 @@ def main(
         "teto_por_dy": teto_por_dy(data.dividendo_medio, indice_base) if data.dividendo_medio else None,
         "teto_bazin": teto_bazin(data.dividend_rate, indice_base),
         "teto_graham": teto_graham(data.lpa, data.vpa),
+        "teto_vpa_roe_taxa": teto_vpa_roe(data.vpa, data.roe_ajustado, taxa_livre),
+        "teto_vpa_roe_inflacao": teto_vpa_roe(data.vpa, data.roe_ajustado, inflacao),
         "teto_dcf": teto_dcf(
             data.free_cashflow, data.shares_outstanding, data.beta,
             data.earnings_growth, taxa_livre or 0, premio, inflacao
@@ -209,6 +211,11 @@ def main(
         termometro=termometro, nome=data.nome,
         dividend_yield=data.dividend_yield,
         dy_medio=data.dy_medio,
+        roe=data.roe,
+        roe_medio_5a=data.roe_medio_5a,
+        roe_tendencia=data.roe_tendencia,
+        roe_r2=data.roe_r2,
+        roe_ajustado=data.roe_ajustado,
         ultimo_dividendo=data.ultimo_dividendo,
         mes_ano_dividendo=data.mes_ano_dividendo,
     )

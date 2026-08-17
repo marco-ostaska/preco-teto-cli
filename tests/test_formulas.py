@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from preco_teto.formulas import teto_por_lucro
+from preco_teto.formulas import teto_por_lucro, teto_vpa_roe
 
 
 def make_income(values):
@@ -40,6 +40,14 @@ def test_teto_por_lucro_zero_range():
     prices = {2019: 10.0, 2020: 10.0, 2021: 10.0, 2022: 10.0, 2023: 10.0}
     result = teto_por_lucro(income, prices, previous_close=10.0)
     assert result is None
+
+
+def test_teto_vpa_roe_usa_taxa_em_percentual():
+    assert teto_vpa_roe(vpa=32.0, roe=17.12, taxa=14.65) == pytest.approx(37.40)
+
+
+def test_teto_vpa_roe_none_se_dado_invalido():
+    assert teto_vpa_roe(vpa=None, roe=17.12, taxa=14.65) is None
 
 
 # --- remaining formulas ---

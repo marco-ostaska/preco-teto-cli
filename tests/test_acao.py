@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
+import pandas as pd
 
 
 def make_ticker_mock(info, income_stmt, adj_close):
@@ -144,6 +145,43 @@ def test_dividend_yield_atual_calculado(mock_dividends_3y, mock_yf_info_br, mock
     data = fetch_acao("VALE3")
     # 3.60 / 58.20 * 100 = 6.1856...
     assert data.dividend_yield == pytest.approx(6.19, rel=1e-2)
+
+
+def test_roe_calculado_como_percentual(mock_yf_info_br, mock_adj_close, mocker):
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = mock_yf_info_br
+    mock_ticker.history.return_value = mock_adj_close
+    mock_ticker.income_stmt = None
+    mock_ticker.dividends = None
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.acao import fetch_acao
+    data = fetch_acao("VALE3")
+
+    assert data.roe == pytest.approx(17.12)
+
+
+def test_roe_historico_calcula_media_e_tendencia(mock_yf_info_br, mock_adj_close, mocker):
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = mock_yf_info_br
+    mock_ticker.history.return_value = mock_adj_close
+    mock_ticker.income_stmt = pd.DataFrame(
+        {"Net Income": [100.0, 110.0, 120.0, 130.0, 140.0]},
+        index=pd.to_datetime(["2019-12-31", "2020-12-31", "2021-12-31", "2022-12-31", "2023-12-31"]),
+    ).T
+    mock_ticker.balance_sheet = pd.DataFrame(
+        {"Stockholders Equity": [1000.0, 1000.0, 1000.0, 1000.0, 1000.0]},
+        index=pd.to_datetime(["2019-12-31", "2020-12-31", "2021-12-31", "2022-12-31", "2023-12-31"]),
+    ).T
+    mock_ticker.dividends = None
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.acao import fetch_acao
+    data = fetch_acao("VALE3")
+
+    assert data.roe_medio_5a == pytest.approx(12.0)
+    assert data.roe_tendencia == pytest.approx(1.0)
+    assert data.roe_ajustado == pytest.approx(13.0)
 
 
 def test_dy_medio_calculado(mock_dividends_3y, mock_yf_info_br, mock_adj_close, mocker):

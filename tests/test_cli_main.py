@@ -26,6 +26,11 @@ def test_cli_render_acao_envia_nome_para_renderer(mocker):
         beta=0.95,
         earnings_growth=0.12,
         revenue_growth=0.08,
+        roe=17.12,
+        roe_medio_5a=16.0,
+        roe_tendencia=-1.0,
+        roe_r2=0.9,
+        roe_ajustado=15.0,
         income_net=None,
         year_prices={},
         previous_close=57.80,
@@ -47,6 +52,10 @@ def test_cli_render_acao_envia_nome_para_renderer(mocker):
     assert renderer.render_acao.call_args.kwargs["nome"] == "Vale S.A."
     assert renderer.render_acao.call_args.kwargs["dividend_yield"] == 6.19
     assert renderer.render_acao.call_args.kwargs["dy_medio"] == 24.74
+    assert renderer.render_acao.call_args.kwargs["roe"] == 17.12
+    tetos = renderer.render_acao.call_args.args[3]
+    assert "teto_vpa_roe_taxa" in tetos
+    assert "teto_vpa_roe_inflacao" in tetos
     assert renderer.render_acao.call_args.kwargs["ultimo_dividendo"] == 0.30
     assert renderer.render_acao.call_args.kwargs["mes_ano_dividendo"] == "Dez/2024"
 

@@ -17,6 +17,7 @@ def mock_yf_info_br():
         "beta": 0.95,
         "earningsGrowth": 0.12,
         "revenueGrowth": 0.08,
+        "returnOnEquity": 0.1712,
         "fiftyTwoWeekLow": 20.0,
         "fiftyTwoWeekHigh": 60.0,
     }
