@@ -51,6 +51,28 @@ def test_dividendo_estimado_uses_6m_when_stable(mock_get, mock_fiiscom_html):
 
 
 @patch("requests.get")
+def test_dy_12m_soma_ultimos_12_dividendos(mock_get, mock_fiiscom_html):
+    mock_get.return_value.text = mock_fiiscom_html
+    mock_get.return_value.encoding = "utf-8"
+    from preco_teto.services.fii import FiisComService
+
+    svc = FiisComService("HGLG11")
+    svc._dados["dividendos"] = pd.Series([1.0] * 12)
+    assert svc.dividend_yield_12m == pytest.approx(round(12 / 142.50 * 100, 2))
+
+
+@patch("requests.get")
+def test_dy_12m_none_sem_12_dividendos(mock_get, mock_fiiscom_html):
+    mock_get.return_value.text = mock_fiiscom_html
+    mock_get.return_value.encoding = "utf-8"
+    from preco_teto.services.fii import FiisComService
+
+    svc = FiisComService("HGLG11")
+    svc._dados["dividendos"] = pd.Series([1.0] * 11)
+    assert svc.dividend_yield_12m is None
+
+
+@patch("requests.get")
 def test_fetch_fii_expoe_nome_do_ativo(mock_get, mock_fiiscom_html, mocker):
     mock_get.return_value.text = mock_fiiscom_html
     mock_get.return_value.encoding = "utf-8"
@@ -136,6 +158,26 @@ def test_fetch_fii_inclui_ultimo_dividendo(mock_get, mock_fiiscom_html, mocker):
     assert data.ultimo_dividendo == 1.10
     assert data.mes_ano_dividendo == "Mar/2026"
     assert data.dy_mensal == pytest.approx(0.78)
+
+
+@patch("requests.get")
+def test_fetch_fii_usa_dividendos_yfinance_para_dy_12m(mock_get, mock_fiiscom_html, mocker):
+    mock_get.return_value.text = mock_fiiscom_html
+    mock_get.return_value.encoding = "utf-8"
+
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = {"fiftyTwoWeekLow": 140.0, "fiftyTwoWeekHigh": 160.0}
+    mock_ticker.history.return_value = pd.DataFrame({"Close": [140.0, 160.0]})
+    mock_ticker.dividends = pd.Series(
+        [1.0] * 12,
+        index=pd.date_range("2025-08-15", periods=12, freq="MS"),
+    )
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.fii import fetch_fii
+
+    data = fetch_fii("HGLG11")
+    assert data.dividend_yield_12m == pytest.approx(round(12 / 142.50 * 100, 2))
 
 
 @patch("requests.get")

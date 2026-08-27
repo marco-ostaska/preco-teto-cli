@@ -72,6 +72,7 @@ def test_cli_render_fii_inclui_teto_bazin(mocker):
         ultimo_dividendo=1.10,
         mes_ano_dividendo="Mar/2026",
         dy_mensal=0.78,
+        dividend_yield_12m=10.0,
         low_52=140.0,
         high_52=160.0,
     )
@@ -88,7 +89,9 @@ def test_cli_render_fii_inclui_teto_bazin(mocker):
     tetos = renderer.render_fii.call_args.args[2]
     assert "teto_bazin" in tetos
     assert tetos["teto_bazin"] is not None
+    assert tetos["teto_por_dy_cdi_12m"] == pytest.approx(14.25 / 0.1465, rel=1e-2)
     assert renderer.render_fii.call_args.kwargs["nome"] == "CGHG Logística"
+    assert renderer.render_fii.call_args.kwargs["dividend_yield_12m"] == 10.0
 
 
 def test_cli_render_etf_inclui_teto_pl(mocker):

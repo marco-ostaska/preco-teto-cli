@@ -26,7 +26,8 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
 
 
 def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
-               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None):
+               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None,
+               dividend_yield_12m=None):
     print(json.dumps({
         "ticker": ticker,
         "nome": nome,
@@ -35,6 +36,7 @@ def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
         "ultimo_dividendo": ultimo_dividendo,
         "mes_ano_dividendo": mes_ano_dividendo,
         "dy_mensal": dy_mensal,
+        "dividend_yield_12m": dividend_yield_12m,
         "termometro": termometro,
         "indices": {"cdi": indices.cdi, "ipca": indices.ipca},
     }, indent=2, ensure_ascii=False))

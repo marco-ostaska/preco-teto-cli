@@ -50,11 +50,15 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
 
 
 def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
-               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None):
+               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None,
+               dividend_yield_12m=None):
+    print()
+    print()
     print(_header(ticker, nome, cotacao, "R$"))
     print("-" * 46)
     for key, label in [
         ("teto_por_dy", "Teto por DY"),
+        ("teto_por_dy_cdi_12m", "Teto DY 12m (CDI)"),
         ("teto_bazin", "Teto Bazin"),
         ("vpa", "VPA"),
         ("teto_margem", "Teto Margem (52w)"),
@@ -67,6 +71,8 @@ def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
         print(f"Último div: R$ {ultimo_dividendo:.2f} ({mes_ano_dividendo}){dy_str}")
     if termometro:
         print(f"Termômetro: {termometro}")
+    if dividend_yield_12m is not None:
+        print(f"DY 12m: {dividend_yield_12m:.2f}%")
 
 
 def render_etfbr(data, tetos, indices, termometro=None):

@@ -101,8 +101,10 @@ def _render_fii(ticker: str, renderer) -> bool:
     idx = fetch_indices_br()
     indice_base = idx.melhor_indice
     div_anual = (data.cotacao * data.dividend_yield / 100) if data.dividend_yield and data.cotacao else None
+    div_12m = (data.cotacao * data.dividend_yield_12m / 100) if getattr(data, "dividend_yield_12m", None) and data.cotacao else None
     tetos = {
         "teto_por_dy": teto_por_dy(div_anual, indice_base) if data.cotacao else None,
+        "teto_por_dy_cdi_12m": teto_por_dy(div_12m, idx.cdi),
         "teto_bazin": teto_bazin(data.dividendo_estimado, indice_base),
         "vpa": data.vpa,
         "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
@@ -122,6 +124,7 @@ def _render_fii(ticker: str, renderer) -> bool:
         ultimo_dividendo=data.ultimo_dividendo,
         mes_ano_dividendo=data.mes_ano_dividendo,
         dy_mensal=data.dy_mensal,
+        dividend_yield_12m=getattr(data, "dividend_yield_12m", None),
     )
     return True
 

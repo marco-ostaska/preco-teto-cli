@@ -101,13 +101,17 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
 
 
 def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None,
-               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None):
+               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None,
+               dividend_yield_12m=None):
+    console.print()
+    console.print()
     t = Table(title=_title(ticker, nome, "R$", cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
     t.add_column("Potencial", justify="right")
     t.add_column("")
     t.add_row(*_teto_row("Teto por DY  (heurística)", tetos.get("teto_por_dy"), cotacao))
+    t.add_row(*_teto_row("Teto DY 12m     (CDI)", tetos.get("teto_por_dy_cdi_12m"), cotacao))
     t.add_row(*_teto_row("Teto Bazin   (proventos)", tetos.get("teto_bazin"), cotacao))
     t.add_row(*_teto_row("VPA", tetos.get("vpa"), cotacao))
     t.add_row(*_teto_row("Teto Margem  (52w high/low)", tetos.get("teto_margem"), cotacao))
@@ -117,6 +121,8 @@ def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
         footer += f"   Último div: R$ {ultimo_dividendo:.2f} ({mes_ano_dividendo}) DY: {dy_mensal:.2f}%" if dy_mensal else f"   Último div: R$ {ultimo_dividendo:.2f} ({mes_ano_dividendo})"
     if termometro:
         footer += f"   Termômetro: {termometro}"
+    if dividend_yield_12m is not None:
+        footer += f"   DY 12m: {dividend_yield_12m:.2f}%"
     console.print(footer)
 
 

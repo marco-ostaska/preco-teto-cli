@@ -122,6 +122,18 @@ class FiisComService:
         return self._dados.get("dy_html")
 
     @property
+    def dividend_yield_12m(self) -> float | None:
+        try:
+            if not self.cotacao or self.cotacao <= 0:
+                return None
+            divs = self._dividends if self._dividends is not None else pd.Series(self._dados.get("dividendos", []))
+            if len(divs) < 12:
+                return None
+            return round(divs.iloc[:12].sum() / self.cotacao * 100, 2)
+        except Exception:
+            return None
+
+    @property
     def dividendo_estimado(self) -> float | None:
         try:
             divs = self._dividends if self._dividends is not None else pd.Series(self._dados.get("dividendos", []))
@@ -168,6 +180,7 @@ class FiiData:
     ultimo_dividendo: float | None = None      # R$ do último rendimento
     mes_ano_dividendo: str | None = None       # ex: "Mar/2026"
     dy_mensal: float | None = None             # DY mensal (%) do último dividendo
+    dividend_yield_12m: float | None = None   # DY (%) acumulado dos últimos 12 pagamentos
     low_52: float | None = None
     high_52: float | None = None
 
@@ -202,6 +215,7 @@ def fetch_fii(ticker: str) -> FiiData:
     ultimo_dividendo = svc.ultimo_dividendo
     mes_ano_dividendo = svc.mes_ano_dividendo
     dy_mensal = svc.dy_mensal
+    dividend_yield_12m = svc.dividend_yield_12m
 
     low_52 = None
     high_52 = None
@@ -211,6 +225,10 @@ def fetch_fii(ticker: str) -> FiiData:
         low_52 = yf_info.get("fiftyTwoWeekLow")
         high_52 = yf_info.get("fiftyTwoWeekHigh")
         history = yf_ticker.history(period="1y", auto_adjust=False)
+        yf_dividends = getattr(yf_ticker, "dividends", None)
+        if isinstance(yf_dividends, pd.Series) and not yf_dividends.empty:
+            svc._dividends = yf_dividends.dropna().sort_index(ascending=False)
+            dividend_yield_12m = svc.dividend_yield_12m
         hist_low, hist_high = _faixa_52_semanas_por_history(history)
 
         low_is_invalid = low_52 is None or (hist_low is not None and low_52 < hist_low * 0.5)
@@ -250,6 +268,7 @@ def fetch_fii(ticker: str) -> FiiData:
         ultimo_dividendo=ultimo_dividendo,
         mes_ano_dividendo=mes_ano_dividendo,
         dy_mensal=dy_mensal,
+        dividend_yield_12m=dividend_yield_12m,
         low_52=low_52,
         high_52=high_52,
     )
