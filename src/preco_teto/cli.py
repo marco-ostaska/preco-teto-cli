@@ -219,6 +219,14 @@ def main(
         roe_tendencia=data.roe_tendencia,
         roe_r2=data.roe_r2,
         roe_ajustado=data.roe_ajustado,
+        alavancagem={
+            "divida_total": getattr(data, "divida_total", None),
+            "caixa": getattr(data, "caixa", None),
+            "divida_liquida": getattr(data, "divida_liquida", None),
+            "divida_sobre_patrimonio": getattr(data, "divida_sobre_patrimonio", None),
+            "divida_liquida_sobre_ebitda": getattr(data, "divida_liquida_sobre_ebitda", None),
+            "status": getattr(data, "alavancagem_status", "Indisponível"),
+        },
         ultimo_dividendo=data.ultimo_dividendo,
         mes_ano_dividendo=data.mes_ano_dividendo,
     )

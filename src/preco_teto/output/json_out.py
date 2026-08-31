@@ -1,7 +1,7 @@
 import json
 
 
-def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
     print(json.dumps({
         "ticker": ticker,
         "nome": nome,
@@ -15,6 +15,7 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
         "roe_tendencia": roe_tendencia,
         "roe_r2": roe_r2,
         "roe_ajustado": roe_ajustado,
+        "alavancagem": alavancagem,
         "ultimo_dividendo": ultimo_dividendo,
         "mes_ano_dividendo": mes_ano_dividendo,
         "termometro": termometro,

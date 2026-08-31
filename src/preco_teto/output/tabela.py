@@ -8,6 +8,7 @@ from rich.text import Text
 from rich import box
 
 from preco_teto.formulas import sinal_cobertura, sinal_p_fcf, sinal_peg
+from preco_teto.output.alavancagem import linhas
 
 console = Console()
 
@@ -58,8 +59,10 @@ def _print_rodape_etfbr(data, indices, termometro=None) -> None:
         console.print("   ".join(linha3))
 
 
-def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
     moeda = "R$" if is_br else "$"
+    console.print()
+    console.print()
     t = Table(title=_title(ticker, nome, moeda, cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
@@ -88,6 +91,8 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
         confianca = f"{roe_r2:.2f}" if roe_r2 is not None else "—"
         ajustado = f"{roe_ajustado:.2f}%" if roe_ajustado is not None else "—"
         console.print(f"ROE médio: {roe_medio_5a:.2f}%   Ajustado: {ajustado}   Tendência: {tendencia}   R²: {confianca}")
+    for linha in linhas(alavancagem, is_br):
+        console.print(linha)
 
     if is_br:
         console.print(f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%" + (f"   Termômetro: {termometro}" if termometro else ""))
@@ -147,6 +152,7 @@ def render_etf(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
 
 
 def render_etfbr(data, tetos: dict, indices, termometro=None):
+    console.print()
     console.print()
     _print_cabecalho_ativo(data.ticker, data.nome, "R$", data.cotacao)
     t = Table(
@@ -221,6 +227,8 @@ def _render_etf_multiplos(p_fcf_agregado, peg_agregado, cobertura_p_fcf, cobertu
 
 
 def render_indices(br):
+    console.print()
+    console.print()
     t = Table(title="Índices de Referência BR", box=box.SIMPLE_HEAVY)
     t.add_column("Índice")
     t.add_column("Valor", justify="right")

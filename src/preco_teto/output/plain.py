@@ -1,4 +1,5 @@
 from preco_teto.formulas import sinal_p_fcf, sinal_peg
+from preco_teto.output.alavancagem import linhas
 
 
 def _fmt(valor, is_br):
@@ -13,8 +14,10 @@ def _header(ticker, nome, cotacao, moeda):
     return f"{titulo}  {moeda} {cotacao:.2f}"
 
 
-def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
     moeda = "R$" if is_br else "$"
+    print()
+    print()
     print(_header(ticker, nome, cotacao, moeda))
     print("-" * 46)
     for key, label in [
@@ -38,6 +41,8 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
         confianca = f"{roe_r2:.2f}" if roe_r2 is not None else "—"
         ajustado = f"{roe_ajustado:.2f}%" if roe_ajustado is not None else "—"
         print(f"ROE médio: {roe_medio_5a:.2f}%  Ajustado: {ajustado}  Tendência: {tendencia}  R²: {confianca}")
+    for linha in linhas(alavancagem, is_br):
+        print(linha)
     if is_br:
         print(f"CDI: {indices.cdi}%  IPCA: {indices.ipca}%" + (f"  Termômetro: {termometro}" if termometro else ""))
     else:
@@ -76,6 +81,7 @@ def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
 
 
 def render_etfbr(data, tetos, indices, termometro=None):
+    print()
     print()
     print(f"{data.ticker}  R$ {data.cotacao:.2f}")
     if data.nome:
@@ -152,5 +158,7 @@ def render_etf(ticker, cotacao, tetos, indices, termometro=None, nome=None,
 
 
 def render_indices(br):
+    print()
+    print()
     print(f"CDI:   {br.cdi}%")
     print(f"IPCA:  {br.ipca}%")

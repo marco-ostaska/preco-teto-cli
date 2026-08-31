@@ -168,6 +168,30 @@ def termometro_margem(margem: float | None) -> str | None:
     return "Euforia"
 
 
+def classificar_alavancagem(
+    divida_sobre_patrimonio: float | None,
+    divida_liquida_sobre_ebitda: float | None,
+) -> str:
+    """Classifica alavancagem por limiares heurísticos informativos."""
+    ratios = [
+        valor for valor in (divida_sobre_patrimonio, divida_liquida_sobre_ebitda)
+        if valor is not None
+    ]
+    if not ratios:
+        return "Indisponível"
+    if (
+        (divida_sobre_patrimonio is not None and divida_sobre_patrimonio > 1.0)
+        or (divida_liquida_sobre_ebitda is not None and divida_liquida_sobre_ebitda > 3.0)
+    ):
+        return "Elevada"
+    if (
+        (divida_sobre_patrimonio is not None and divida_sobre_patrimonio > 0.5)
+        or (divida_liquida_sobre_ebitda is not None and divida_liquida_sobre_ebitda > 1.5)
+    ):
+        return "Atenção"
+    return "Saudável"
+
+
 def p_fcf(
     price: float | None,
     free_cashflow: float | None,

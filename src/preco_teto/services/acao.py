@@ -4,6 +4,8 @@ import pandas as pd
 import yfinance as yf
 from scipy.stats import linregress, trim_mean
 
+from preco_teto.formulas import classificar_alavancagem
+
 
 def _is_br(ticker: str) -> bool:
     return ticker[-1].isdigit()
@@ -130,6 +132,91 @@ def _ultimo_dividendo(dividends: pd.Series) -> tuple[float | None, str | None]:
         return None, None
 
 
+def _info_number(info: dict, *keys: str) -> float | None:
+    for key in keys:
+        value = info.get(key)
+        try:
+            if value is not None:
+                return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _statement_number(statement: pd.DataFrame | None, *labels: str) -> float | None:
+    if not isinstance(statement, pd.DataFrame) or statement.empty:
+        return None
+    for label in labels:
+        if label not in statement.index:
+            continue
+        values = pd.to_numeric(statement.loc[label], errors="coerce").dropna()
+        if not values.empty:
+            return float(values.iloc[0])
+    return None
+
+
+def _sum_available(*values: float | None) -> float | None:
+    available = [value for value in values if value is not None]
+    return sum(available) if available else None
+
+
+def _alavancagem(
+    info: dict,
+    balance_sheet: pd.DataFrame | None,
+    income_stmt: pd.DataFrame | None,
+) -> dict[str, float | str | None]:
+    divida_total = _info_number(info, "totalDebt")
+    if divida_total is None:
+        divida_total = _statement_number(
+            balance_sheet,
+            "Total Debt",
+            "Total Debt And Capital Lease Obligation",
+        )
+    if divida_total is None:
+        divida_total = _sum_available(
+            _statement_number(balance_sheet, "Current Debt", "Current Debt And Capital Lease Obligation"),
+            _statement_number(balance_sheet, "Long Term Debt", "Long Term Debt And Capital Lease Obligation"),
+        )
+
+    caixa = _info_number(info, "totalCash")
+    if caixa is None:
+        caixa = _statement_number(
+            balance_sheet,
+            "Cash Cash Equivalents And Short Term Investments",
+            "Cash And Cash Equivalents",
+        )
+
+    patrimonio = _info_number(info, "totalStockholderEquity")
+    if patrimonio is None:
+        patrimonio = _statement_number(
+            balance_sheet,
+            "Stockholders Equity",
+            "Common Stock Equity",
+            "Total Equity Gross Minority Interest",
+        )
+
+    ebitda = _info_number(info, "ebitda", "normalizedEBITDA")
+    if ebitda is None:
+        ebitda = _statement_number(income_stmt, "EBITDA", "Normalized EBITDA")
+
+    divida_liquida = divida_total - caixa if divida_total is not None and caixa is not None else None
+    divida_sobre_patrimonio = (
+        divida_total / patrimonio if divida_total is not None and patrimonio and patrimonio > 0 else None
+    )
+    divida_liquida_sobre_ebitda = (
+        divida_liquida / ebitda if divida_liquida is not None and ebitda and ebitda > 0 else None
+    )
+
+    return {
+        "divida_total": round(divida_total, 2) if divida_total is not None else None,
+        "caixa": round(caixa, 2) if caixa is not None else None,
+        "divida_liquida": round(divida_liquida, 2) if divida_liquida is not None else None,
+        "divida_sobre_patrimonio": round(divida_sobre_patrimonio, 2) if divida_sobre_patrimonio is not None else None,
+        "divida_liquida_sobre_ebitda": round(divida_liquida_sobre_ebitda, 2) if divida_liquida_sobre_ebitda is not None else None,
+        "status": classificar_alavancagem(divida_sobre_patrimonio, divida_liquida_sobre_ebitda),
+    }
+
+
 MESES_PT = {
     "01": "Jan", "02": "Fev", "03": "Mar", "04": "Abr",
     "05": "Mai", "06": "Jun", "07": "Jul", "08": "Ago",
@@ -159,6 +246,12 @@ class AcaoData:
     roe_tendencia: float | None
     roe_r2: float | None
     roe_ajustado: float | None
+    divida_total: float | None = None
+    caixa: float | None = None
+    divida_liquida: float | None = None
+    divida_sobre_patrimonio: float | None = None
+    divida_liquida_sobre_ebitda: float | None = None
+    alavancagem_status: str = "Indisponível"
     income_net: pd.Series = field(repr=False, default=None)
     year_prices: dict = field(repr=False, default_factory=dict)
     previous_close: float | None = None
@@ -209,6 +302,7 @@ def fetch_acao(ticker: str) -> AcaoData:
     dy_medio = _dy(div_medio, cotacao)
     ultimo_dividendo, mes_ano_dividendo = _ultimo_dividendo(dividends)
     roe_medio_5a, roe_tendencia, roe_r2, roe_ajustado = _roe_historico(income_stmt, balance_sheet)
+    alavancagem = _alavancagem(info, balance_sheet, income_stmt)
 
     return AcaoData(
         ticker=ticker,
@@ -231,6 +325,12 @@ def fetch_acao(ticker: str) -> AcaoData:
         roe_tendencia=roe_tendencia,
         roe_r2=roe_r2,
         roe_ajustado=roe_ajustado,
+        divida_total=alavancagem["divida_total"],
+        caixa=alavancagem["caixa"],
+        divida_liquida=alavancagem["divida_liquida"],
+        divida_sobre_patrimonio=alavancagem["divida_sobre_patrimonio"],
+        divida_liquida_sobre_ebitda=alavancagem["divida_liquida_sobre_ebitda"],
+        alavancagem_status=alavancagem["status"],
         income_net=income_net,
         year_prices=year_px,
         previous_close=info.get("previousClose") or info.get("regularMarketPreviousClose"),
