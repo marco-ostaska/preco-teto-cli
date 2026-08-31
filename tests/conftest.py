@@ -203,3 +203,10 @@ def mock_dividends_empty():
 def mock_etfsbrasil_divo11_html():
     from pathlib import Path
     return (Path(__file__).parent / "fixtures" / "etfsbrasil_divo11.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def mock_etfsbrasil_cdib11_html():
+    """HTML do CDIB11 com formato novo (séries LZString + JSON e chunks inline)."""
+    from pathlib import Path
+    return (Path(__file__).parent / "fixtures" / "etfsbrasil_cdib11.html").read_text(encoding="utf-8")

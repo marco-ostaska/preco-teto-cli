@@ -79,3 +79,24 @@ def test_parse_latest_spread_fixture(mock_etfsbrasil_divo11_html):
     spread = _parse_latest_spread(blob)
 
     assert spread == pytest.approx(0.0594, abs=0.001)
+
+
+def test_fetch_etf_br_formato_inline_lzstring(mock_etfsbrasil_cdib11_html):
+    """Formato atual do site: séries LZString+JSON e dados de chunk inline no push do header."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("preco_teto.services.etf_br.requests.get") as mock_get:
+        mock_get.return_value = MagicMock(
+            status_code=200,
+            text=mock_etfsbrasil_cdib11_html,
+            raise_for_status=MagicMock(),
+        )
+
+        data = fetch_etf_br("cdib11")
+
+    assert data.ticker == "CDIB11"
+    assert data.cotacao == pytest.approx(51.66)
+    assert data.low_52 == pytest.approx(49.74, abs=0.01)
+    assert data.high_52 == pytest.approx(51.66, abs=0.01)
+    assert data.pl_cota == pytest.approx(51.61, abs=0.01)
+    assert data.premio_desconto_pct == pytest.approx(0.0967, abs=0.01)
