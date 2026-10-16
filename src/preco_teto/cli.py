@@ -98,6 +98,9 @@ def _render_etfbr(ticker: str, renderer) -> None:
 
 def _render_fii(ticker: str, renderer) -> bool:
     data = fetch_fii(ticker)
+    if not data.cotacao:
+        typer.echo(f"{ticker} — cotação indisponível para este FII.")
+        return True
     idx = fetch_indices_br()
     indice_base = idx.melhor_indice
     div_anual = (data.cotacao * data.dividend_yield / 100) if data.dividend_yield and data.cotacao else None

@@ -252,6 +252,75 @@ def test_cli_flag_fii_forca_fluxo_fii(mocker):
     assert renderer.render_fii.called
 
 
+@pytest.mark.parametrize("output_flags", [[], ["--plain"], ["--json"]])
+@pytest.mark.parametrize("type_flags", [[], ["--fii"]])
+@pytest.mark.parametrize("cotacao", [None, 0.0])
+def test_cli_fii_missing_quote_is_reported(mocker, output_flags, type_flags, cotacao):
+    from preco_teto.services.fii import FiiData
+
+    data = FiiData(
+        ticker="HGLG11",
+        nome="CGHG Logística",
+        cotacao=cotacao,
+        vpa=166.43,
+        pvp=None,
+        dividend_yield=8.56,
+        dividendo_estimado=13.62,
+    )
+    mocker.patch("preco_teto.cli.fetch_fii", return_value=data)
+    mocker.patch(
+        "preco_teto.cli.fetch_indices_br",
+        return_value=SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45),
+    )
+    acao_mock = mocker.patch("preco_teto.cli.fetch_acao")
+
+    result = runner.invoke(app, ["HGLG11", *type_flags, *output_flags])
+
+    assert result.exit_code == 0, result.exception
+    assert "HGLG11 — cotação indisponível para este FII." in result.output
+    acao_mock.assert_not_called()
+
+
+@pytest.mark.parametrize("output_flags", [[], ["--plain"], ["--json"]])
+def test_cli_fii_renders_with_real_renderer(mocker, output_flags):
+    from preco_teto.services.fii import FiiData
+
+    data = FiiData(
+        ticker="HGLG11",
+        nome="CGHG Logística",
+        cotacao=156.60,
+        vpa=166.43,
+        pvp=0.94,
+        dividend_yield=8.56,
+        dividendo_estimado=13.62,
+        ultimo_dividendo=1.17,
+        mes_ano_dividendo="Set/2026",
+        dy_mensal=0.79,
+        dividend_yield_12m=8.56,
+        low_52=145.11,
+        high_52=157.58,
+    )
+    mocker.patch("preco_teto.cli.fetch_fii", return_value=data)
+    mocker.patch(
+        "preco_teto.cli.fetch_indices_br",
+        return_value=SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45),
+    )
+
+    result = runner.invoke(app, ["HGLG11", "--fii", *output_flags])
+
+    assert result.exit_code == 0, result.exception
+    assert "HGLG11" in result.output
+    if "--json" in output_flags:
+        import json
+
+        payload = json.loads(result.output)
+        assert payload["cotacao"] == 156.60
+        assert payload["tetos"]["vpa"] == 166.43
+    else:
+        assert "156.60" in result.output
+        assert "166.43" in result.output
+
+
 def test_cli_etfbr_chama_fetch_e_render(mocker):
     from preco_teto.services.etf_br import EtfBrData
 

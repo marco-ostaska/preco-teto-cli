@@ -3,6 +3,105 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 
 
+@pytest.fixture
+def current_fiiscom_html():
+    rows = "".join(
+        f"""
+        <tr>
+          <td data-label="Competência">09/2026</td>
+          <td data-label="Rendimento"><strong>R$ {value}</strong></td>
+          <td data-label="Yield mensal">0,79%</td>
+          <td data-label="Data-com"><time datetime="2026-09-30">30 set 2026</time></td>
+          <td data-label="Pagamento"><time datetime="2026-10-15">15 out 2026</time></td>
+        </tr>
+        """
+        for value in ["1,17"] * 3 + ["1,10"] * 9
+    )
+    return (
+        """
+    <html><body>
+      <h1>HGLG11 - CGHG Logística</h1>
+      <script>
+        var dataLayer_content = {"pagePostTerms": {"meta": {
+          "valor": 156.60, "valorpatrimonialcota": 166.43, "dy": 8.5632
+        }}};
+        dataLayer.push(dataLayer_content);
+      </script>
+      <table class="dividendsTable__table"><tbody>
+    """
+        + rows
+        + "</tbody></table></body></html>"
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [
+        ("cotacao", 156.60),
+        ("vpa", 166.43),
+        ("dividend_yield", 8.5632),
+        ("ultimo_dividendo", 1.17),
+        ("dy_mensal", 0.79),
+        ("dividendo_estimado", 13.62),
+        ("dividend_yield_12m", round(13.41 / 156.60 * 100, 2)),
+    ],
+)
+@patch("requests.get")
+def test_current_layout_values(mock_get, current_fiiscom_html, field, expected):
+    from preco_teto.services.fii import FiisComService
+
+    mock_get.return_value.text = current_fiiscom_html
+    svc = FiisComService("HGLG11")
+
+    assert getattr(svc, field) == pytest.approx(expected)
+
+
+@patch("requests.get")
+def test_current_layout_uses_data_com_month(mock_get, current_fiiscom_html):
+    from preco_teto.services.fii import FiisComService
+
+    mock_get.return_value.text = current_fiiscom_html
+    svc = FiisComService("HGLG11")
+
+    assert svc.mes_ano_dividendo == "Set/2026"
+
+
+@patch("requests.get")
+def test_current_layout_parses_brazilian_dividend_amount(
+    mock_get, current_fiiscom_html
+):
+    from preco_teto.services.fii import FiisComService
+
+    mock_get.return_value.text = current_fiiscom_html.replace(
+        "R$ 1,17", "R$\u00a01.234,56"
+    )
+    svc = FiisComService("HGLG11")
+
+    assert svc.ultimo_dividendo == pytest.approx(1234.56)
+
+
+@pytest.mark.parametrize("metadata", ['{"pagePostTerms": {"meta": {}}}', '{"broken":'])
+@patch("requests.get")
+def test_current_layout_handles_missing_metadata(
+    mock_get, current_fiiscom_html, metadata
+):
+    from preco_teto.services.fii import FiisComService
+
+    start = current_fiiscom_html.index("var dataLayer_content = ")
+    end = current_fiiscom_html.index("dataLayer.push")
+    mock_get.return_value.text = (
+        current_fiiscom_html[:start]
+        + f"var dataLayer_content = {metadata};\n"
+        + current_fiiscom_html[end:]
+    )
+    svc = FiisComService("HGLG11")
+
+    assert svc.cotacao is None
+    assert svc.vpa is None
+    assert svc.dividend_yield is None
+    assert svc.ultimo_dividendo == pytest.approx(1.17)
+
+
 @patch("requests.get")
 def test_fii_cotacao_from_fiiscom(mock_get, mock_fiiscom_html):
     mock_get.return_value.text = mock_fiiscom_html
