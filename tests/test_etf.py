@@ -22,7 +22,7 @@ def test_fetch_etf_combina_statusinvest_com_cvm(mock_get, mock_statusinvest_etf_
 
     def fake_get(url, headers=None, timeout=30):
         response = MagicMock()
-        if "statusinvest.com.br/etfs/divo11" in url:
+        if "statusinvest.com.br/etf/br/divo11" in url:
             response.text = mock_statusinvest_etf_html
             response.raise_for_status = MagicMock()
             return response
@@ -52,9 +52,8 @@ def test_fetch_etf_combina_statusinvest_com_cvm(mock_get, mock_statusinvest_etf_
 
 
 @patch("requests.get")
-def test_fetch_etf_us_usa_yfinance_quando_statusinvest_nao_tem_cnpj(mock_get, mocker):
-    mock_get.return_value.text = "<html><body><h1>TFLO</h1></body></html>"
-    mock_get.return_value.raise_for_status = MagicMock()
+def test_fetch_etf_us_usa_yfinance_direto_sem_statusinvest(mock_get, mocker):
+    mock_get.side_effect = AssertionError("statusinvest não deve ser chamado para ETF EUA")
 
     hist = pd.DataFrame({"Close": [50.0, 51.0, 52.0]})
     mock_ticker = mocker.MagicMock()
@@ -148,3 +147,10 @@ def test_fetch_etf_us_sem_funds_data_retorna_holdings_vazios(mock_get, mocker):
 
     data = fetch_etf("XYZ")
     assert data.holdings == []
+
+
+def test_statusinvest_url_usa_novo_padrao_br_e_eua():
+    from preco_teto.services.etf import _statusinvest_url
+
+    assert _statusinvest_url("DIVO11") == "https://statusinvest.com.br/etf/br/divo11"
+    assert _statusinvest_url("PALL") == "https://statusinvest.com.br/etf/eua/pall"

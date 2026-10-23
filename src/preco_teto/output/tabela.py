@@ -8,6 +8,7 @@ from rich.text import Text
 from rich import box
 
 from preco_teto.formulas import sinal_cobertura, sinal_p_fcf, sinal_peg
+from preco_teto.output.alavancagem import linhas
 
 console = Console()
 
@@ -58,8 +59,10 @@ def _print_rodape_etfbr(data, indices, termometro=None) -> None:
         console.print("   ".join(linha3))
 
 
-def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
     moeda = "R$" if is_br else "$"
+    console.print()
+    console.print()
     t = Table(title=_title(ticker, nome, moeda, cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
@@ -72,12 +75,24 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
         "teto_bazin":     f"Teto Bazin      ({'CDI dinâmico' if is_br else 'Fed Funds dinâmico'})",
         "teto_graham":    "Teto Graham     (LPA×VPA)",
         "teto_dcf":       "Teto DCF        (FCL/CAPM)",
+        "teto_vpa_roe_taxa": "Teto VPA/ROE    (CDI/Fed Funds)",
+        "teto_vpa_roe_inflacao": "Teto VPA/ROE    (IPCA/CPI)",
         "teto_margem":    "Teto Margem     (52w high/low)",
     }
     for key, label in labels.items():
         t.add_row(*_teto_row(label, tetos.get(key), cotacao))
 
     console.print(t)
+
+    if roe is not None:
+        console.print(f"ROE: {roe:.2f}%")
+    if roe_medio_5a is not None:
+        tendencia = f"{roe_tendencia:+.2f} p.p./ano" if roe_tendencia is not None else "—"
+        confianca = f"{roe_r2:.2f}" if roe_r2 is not None else "—"
+        ajustado = f"{roe_ajustado:.2f}%" if roe_ajustado is not None else "—"
+        console.print(f"ROE médio: {roe_medio_5a:.2f}%   Ajustado: {ajustado}   Tendência: {tendencia}   R²: {confianca}")
+    for linha in linhas(alavancagem, is_br):
+        console.print(linha)
 
     if is_br:
         console.print(f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%" + (f"   Termômetro: {termometro}" if termometro else ""))
@@ -91,13 +106,17 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
 
 
 def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None,
-               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None):
+               ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None,
+               dividend_yield_12m=None):
+    console.print()
+    console.print()
     t = Table(title=_title(ticker, nome, "R$", cotacao), box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
     t.add_column("Potencial", justify="right")
     t.add_column("")
     t.add_row(*_teto_row("Teto por DY  (heurística)", tetos.get("teto_por_dy"), cotacao))
+    t.add_row(*_teto_row("Teto DY 12m     (CDI)", tetos.get("teto_por_dy_cdi_12m"), cotacao))
     t.add_row(*_teto_row("Teto Bazin   (proventos)", tetos.get("teto_bazin"), cotacao))
     t.add_row(*_teto_row("VPA", tetos.get("vpa"), cotacao))
     t.add_row(*_teto_row("Teto Margem  (52w high/low)", tetos.get("teto_margem"), cotacao))
@@ -107,6 +126,8 @@ def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
         footer += f"   Último div: R$ {ultimo_dividendo:.2f} ({mes_ano_dividendo}) DY: {dy_mensal:.2f}%" if dy_mensal else f"   Último div: R$ {ultimo_dividendo:.2f} ({mes_ano_dividendo})"
     if termometro:
         footer += f"   Termômetro: {termometro}"
+    if dividend_yield_12m is not None:
+        footer += f"   DY 12m: {dividend_yield_12m:.2f}%"
     console.print(footer)
 
 
@@ -131,6 +152,7 @@ def render_etf(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
 
 
 def render_etfbr(data, tetos: dict, indices, termometro=None):
+    console.print()
     console.print()
     _print_cabecalho_ativo(data.ticker, data.nome, "R$", data.cotacao)
     t = Table(
@@ -205,6 +227,8 @@ def _render_etf_multiplos(p_fcf_agregado, peg_agregado, cobertura_p_fcf, cobertu
 
 
 def render_indices(br):
+    console.print()
+    console.print()
     t = Table(title="Índices de Referência BR", box=box.SIMPLE_HEAVY)
     t.add_column("Índice")
     t.add_column("Valor", justify="right")

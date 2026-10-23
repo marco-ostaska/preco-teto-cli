@@ -67,9 +67,14 @@ def _extract_value_by_label(soup: BeautifulSoup, label: str) -> str | None:
     return None
 
 
+def _statusinvest_url(ticker: str) -> str:
+    market = "br" if ticker.endswith("11") else "eua"
+    return f"https://statusinvest.com.br/etf/{market}/{ticker.lower()}"
+
+
 def _fetch_statusinvest(ticker: str) -> BeautifulSoup:
     resp = requests.get(
-        f"https://statusinvest.com.br/etfs/{ticker.lower()}",
+        _statusinvest_url(ticker),
         headers={"User-Agent": "Mozilla/5.0"},
         timeout=20,
     )
@@ -175,6 +180,9 @@ def _fetch_etf_us(ticker: str) -> EtfData:
 
 def fetch_etf(ticker: str) -> EtfData:
     ticker = ticker.upper()
+    if not ticker.endswith("11"):
+        return _fetch_etf_us(ticker)
+
     soup = _fetch_statusinvest(ticker)
 
     cnpj = _extract_value_by_label(soup, "CNPJ")

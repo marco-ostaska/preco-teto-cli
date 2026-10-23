@@ -2,7 +2,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import pandas as pd
 import yfinance as yf
-from scipy.stats import trim_mean
+from scipy.stats import linregress, trim_mean
+
+from preco_teto.formulas import classificar_alavancagem
 
 
 def _is_br(ticker: str) -> bool:
@@ -77,6 +79,44 @@ def _dy(dividendo_anual: float | None, cotacao: float | None) -> float | None:
         return None
 
 
+def _roe_historico(income_stmt: pd.DataFrame, balance_sheet: pd.DataFrame) -> tuple[float | None, float | None, float | None, float | None]:
+    """Retorna media, inclinacao, R2 e ROE ajustado dos anos disponiveis."""
+    try:
+        if not isinstance(income_stmt, pd.DataFrame) or not isinstance(balance_sheet, pd.DataFrame):
+            return None, None, None, None
+        income_row = next(
+            (name for name in ("Net Income", "Net Income Common Stockholders") if name in income_stmt.index),
+            None,
+        )
+        equity_row = next(
+            (name for name in ("Stockholders Equity", "Common Stock Equity", "Total Equity Gross Minority Interest") if name in balance_sheet.index),
+            None,
+        )
+        if income_row is None or equity_row is None:
+            return None, None, None, None
+
+        income = income_stmt.loc[income_row].dropna()
+        equity = balance_sheet.loc[equity_row].dropna()
+        values = pd.concat([income.rename("income"), equity.rename("equity")], axis=1).dropna().sort_index()
+        if values.empty:
+            return None, None, None, None
+
+        previous_equity = values["equity"].shift(1)
+        average_equity = values["equity"].where(previous_equity.isna(), (values["equity"] + previous_equity) / 2)
+        roe_values = (values["income"] / average_equity * 100).replace([float("inf"), -float("inf")], pd.NA).dropna().tail(5)
+        if len(roe_values) < 2:
+            return None, None, None, None
+
+        regression = linregress(range(len(roe_values)), roe_values.values)
+        media = float(roe_values.mean())
+        tendencia = float(regression.slope)
+        r2 = float(regression.rvalue ** 2)
+        ajustado = media + max(-5.0, min(5.0, tendencia))
+        return round(media, 2), round(tendencia, 2), round(r2, 2), round(ajustado, 2)
+    except Exception:
+        return None, None, None, None
+
+
 def _ultimo_dividendo(dividends: pd.Series) -> tuple[float | None, str | None]:
     """Ultimo dividendo pago e mes/ano, se houver serie historica."""
     try:
@@ -90,6 +130,91 @@ def _ultimo_dividendo(dividends: pd.Series) -> tuple[float | None, str | None]:
         return round(last_value, 2), f"{mes_pt}/{last_date.year}"
     except Exception:
         return None, None
+
+
+def _info_number(info: dict, *keys: str) -> float | None:
+    for key in keys:
+        value = info.get(key)
+        try:
+            if value is not None:
+                return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _statement_number(statement: pd.DataFrame | None, *labels: str) -> float | None:
+    if not isinstance(statement, pd.DataFrame) or statement.empty:
+        return None
+    for label in labels:
+        if label not in statement.index:
+            continue
+        values = pd.to_numeric(statement.loc[label], errors="coerce").dropna()
+        if not values.empty:
+            return float(values.iloc[0])
+    return None
+
+
+def _sum_available(*values: float | None) -> float | None:
+    available = [value for value in values if value is not None]
+    return sum(available) if available else None
+
+
+def _alavancagem(
+    info: dict,
+    balance_sheet: pd.DataFrame | None,
+    income_stmt: pd.DataFrame | None,
+) -> dict[str, float | str | None]:
+    divida_total = _info_number(info, "totalDebt")
+    if divida_total is None:
+        divida_total = _statement_number(
+            balance_sheet,
+            "Total Debt",
+            "Total Debt And Capital Lease Obligation",
+        )
+    if divida_total is None:
+        divida_total = _sum_available(
+            _statement_number(balance_sheet, "Current Debt", "Current Debt And Capital Lease Obligation"),
+            _statement_number(balance_sheet, "Long Term Debt", "Long Term Debt And Capital Lease Obligation"),
+        )
+
+    caixa = _info_number(info, "totalCash")
+    if caixa is None:
+        caixa = _statement_number(
+            balance_sheet,
+            "Cash Cash Equivalents And Short Term Investments",
+            "Cash And Cash Equivalents",
+        )
+
+    patrimonio = _info_number(info, "totalStockholderEquity")
+    if patrimonio is None:
+        patrimonio = _statement_number(
+            balance_sheet,
+            "Stockholders Equity",
+            "Common Stock Equity",
+            "Total Equity Gross Minority Interest",
+        )
+
+    ebitda = _info_number(info, "ebitda", "normalizedEBITDA")
+    if ebitda is None:
+        ebitda = _statement_number(income_stmt, "EBITDA", "Normalized EBITDA")
+
+    divida_liquida = divida_total - caixa if divida_total is not None and caixa is not None else None
+    divida_sobre_patrimonio = (
+        divida_total / patrimonio if divida_total is not None and patrimonio and patrimonio > 0 else None
+    )
+    divida_liquida_sobre_ebitda = (
+        divida_liquida / ebitda if divida_liquida is not None and ebitda and ebitda > 0 else None
+    )
+
+    return {
+        "divida_total": round(divida_total, 2) if divida_total is not None else None,
+        "caixa": round(caixa, 2) if caixa is not None else None,
+        "divida_liquida": round(divida_liquida, 2) if divida_liquida is not None else None,
+        "divida_sobre_patrimonio": round(divida_sobre_patrimonio, 2) if divida_sobre_patrimonio is not None else None,
+        "divida_liquida_sobre_ebitda": round(divida_liquida_sobre_ebitda, 2) if divida_liquida_sobre_ebitda is not None else None,
+        "status": classificar_alavancagem(divida_sobre_patrimonio, divida_liquida_sobre_ebitda),
+    }
 
 
 MESES_PT = {
@@ -116,6 +241,17 @@ class AcaoData:
     beta: float | None
     earnings_growth: float | None
     revenue_growth: float | None
+    roe: float | None  # ROE percentual
+    roe_medio_5a: float | None
+    roe_tendencia: float | None
+    roe_r2: float | None
+    roe_ajustado: float | None
+    divida_total: float | None = None
+    caixa: float | None = None
+    divida_liquida: float | None = None
+    divida_sobre_patrimonio: float | None = None
+    divida_liquida_sobre_ebitda: float | None = None
+    alavancagem_status: str = "Indisponível"
     income_net: pd.Series = field(repr=False, default=None)
     year_prices: dict = field(repr=False, default_factory=dict)
     previous_close: float | None = None
@@ -139,10 +275,18 @@ def fetch_acao(ticker: str) -> AcaoData:
     hist_low_52, hist_high_52 = _history_low_high(history)
 
     income_net = None
+    income_stmt = None
     try:
         stmt = t.income_stmt
+        income_stmt = stmt
         if stmt is not None and "Net Income" in stmt.index:
             income_net = stmt.loc["Net Income"].dropna()
+    except Exception:
+        pass
+
+    balance_sheet = None
+    try:
+        balance_sheet = t.balance_sheet
     except Exception:
         pass
 
@@ -157,6 +301,8 @@ def fetch_acao(ticker: str) -> AcaoData:
     dy_atual = _dy(dividend_rate, cotacao)
     dy_medio = _dy(div_medio, cotacao)
     ultimo_dividendo, mes_ano_dividendo = _ultimo_dividendo(dividends)
+    roe_medio_5a, roe_tendencia, roe_r2, roe_ajustado = _roe_historico(income_stmt, balance_sheet)
+    alavancagem = _alavancagem(info, balance_sheet, income_stmt)
 
     return AcaoData(
         ticker=ticker,
@@ -174,6 +320,17 @@ def fetch_acao(ticker: str) -> AcaoData:
         beta=info.get("beta"),
         earnings_growth=info.get("earningsGrowth") or info.get("revenueGrowth"),
         revenue_growth=info.get("revenueGrowth"),
+        roe=round(info["returnOnEquity"] * 100, 2) if info.get("returnOnEquity") is not None else None,
+        roe_medio_5a=roe_medio_5a,
+        roe_tendencia=roe_tendencia,
+        roe_r2=roe_r2,
+        roe_ajustado=roe_ajustado,
+        divida_total=alavancagem["divida_total"],
+        caixa=alavancagem["caixa"],
+        divida_liquida=alavancagem["divida_liquida"],
+        divida_sobre_patrimonio=alavancagem["divida_sobre_patrimonio"],
+        divida_liquida_sobre_ebitda=alavancagem["divida_liquida_sobre_ebitda"],
+        alavancagem_status=alavancagem["status"],
         income_net=income_net,
         year_prices=year_px,
         previous_close=info.get("previousClose") or info.get("regularMarketPreviousClose"),
