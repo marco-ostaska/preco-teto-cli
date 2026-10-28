@@ -1,3 +1,6 @@
+import json
+import re
+
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -94,7 +97,43 @@ class FiisComService:
                     except Exception:
                         pass
 
-        return {
+        if not dividendos:
+            for row in soup.select(".dividendsTable__table tbody tr"):
+                try:
+                    value = row.select_one('[data-label="Rendimento"]').get_text(
+                        strip=True
+                    )
+                    rend = float(
+                        value.replace("R$", "")
+                        .replace("\xa0", "")
+                        .replace(".", "")
+                        .replace(",", ".")
+                        .strip()
+                    )
+                except (AttributeError, ValueError):
+                    continue
+                dividendos.append(rend)
+                if ultimo_dividendo is None:
+                    ultimo_dividendo = rend
+                    time = row.select_one('[data-label="Data-com"] time')
+                    if time and time.get("datetime"):
+                        try:
+                            data_base_dividendo = datetime.fromisoformat(
+                                time["datetime"]
+                            ).strftime("%d.%m.%Y")
+                        except ValueError:
+                            pass
+                    try:
+                        value = row.select_one('[data-label="Yield mensal"]').get_text(
+                            strip=True
+                        )
+                        dy_mensal_html = float(
+                            value.replace("%", "").replace(",", ".").strip()
+                        )
+                    except (AttributeError, ValueError):
+                        pass
+
+        dados = {
             "nome": nome,
             "cotacao": cotacao,
             "vpa": vpa,
@@ -104,6 +143,27 @@ class FiisComService:
             "data_base_dividendo": data_base_dividendo,
             "dy_mensal_html": dy_mensal_html,
         }
+        for script in soup.find_all("script"):
+            content = script.get_text()
+            match = re.search(r"\bvar\s+dataLayer_content\s*=\s*", content)
+            if not match:
+                continue
+            try:
+                payload, _ = json.JSONDecoder().raw_decode(content[match.end() :])
+                meta = payload.get("pagePostTerms", {}).get("meta", {})
+            except (ValueError, AttributeError):
+                continue
+            for field, key in [
+                ("cotacao", "valor"),
+                ("vpa", "valorpatrimonialcota"),
+                ("dy_html", "dy"),
+            ]:
+                if dados[field] is None:
+                    try:
+                        dados[field] = float(meta.get(key))
+                    except (TypeError, ValueError, AttributeError):
+                        pass
+        return dados
 
     @property
     def nome(self) -> str | None:
@@ -120,6 +180,18 @@ class FiisComService:
     @property
     def dividend_yield(self) -> float | None:
         return self._dados.get("dy_html")
+
+    @property
+    def dividend_yield_12m(self) -> float | None:
+        try:
+            if not self.cotacao or self.cotacao <= 0:
+                return None
+            divs = self._dividends if self._dividends is not None else pd.Series(self._dados.get("dividendos", []))
+            if len(divs) < 12:
+                return None
+            return round(divs.iloc[:12].sum() / self.cotacao * 100, 2)
+        except Exception:
+            return None
 
     @property
     def dividendo_estimado(self) -> float | None:
@@ -168,6 +240,7 @@ class FiiData:
     ultimo_dividendo: float | None = None      # R$ do último rendimento
     mes_ano_dividendo: str | None = None       # ex: "Mar/2026"
     dy_mensal: float | None = None             # DY mensal (%) do último dividendo
+    dividend_yield_12m: float | None = None   # DY (%) acumulado dos últimos 12 pagamentos
     low_52: float | None = None
     high_52: float | None = None
 
@@ -202,6 +275,7 @@ def fetch_fii(ticker: str) -> FiiData:
     ultimo_dividendo = svc.ultimo_dividendo
     mes_ano_dividendo = svc.mes_ano_dividendo
     dy_mensal = svc.dy_mensal
+    dividend_yield_12m = svc.dividend_yield_12m
 
     low_52 = None
     high_52 = None
@@ -211,6 +285,10 @@ def fetch_fii(ticker: str) -> FiiData:
         low_52 = yf_info.get("fiftyTwoWeekLow")
         high_52 = yf_info.get("fiftyTwoWeekHigh")
         history = yf_ticker.history(period="1y", auto_adjust=False)
+        yf_dividends = getattr(yf_ticker, "dividends", None)
+        if isinstance(yf_dividends, pd.Series) and not yf_dividends.empty:
+            svc._dividends = yf_dividends.dropna().sort_index(ascending=False)
+            dividend_yield_12m = svc.dividend_yield_12m
         hist_low, hist_high = _faixa_52_semanas_por_history(history)
 
         low_is_invalid = low_52 is None or (hist_low is not None and low_52 < hist_low * 0.5)
@@ -250,6 +328,7 @@ def fetch_fii(ticker: str) -> FiiData:
         ultimo_dividendo=ultimo_dividendo,
         mes_ano_dividendo=mes_ano_dividendo,
         dy_mensal=dy_mensal,
+        dividend_yield_12m=dividend_yield_12m,
         low_52=low_52,
         high_52=high_52,
     )

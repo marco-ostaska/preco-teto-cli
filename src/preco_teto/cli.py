@@ -8,7 +8,7 @@ from preco_teto.services.fii import fetch_fii
 from preco_teto.services.referencia import fetch_indices_br, fetch_indices_us
 from preco_teto.formulas import (
     teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf,
-    teto_margem, termometro_margem, p_fcf, media_ponderada_renorm
+    teto_margem, teto_vpa_roe, termometro_margem, p_fcf, media_ponderada_renorm
 )
 
 app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
@@ -98,11 +98,16 @@ def _render_etfbr(ticker: str, renderer) -> None:
 
 def _render_fii(ticker: str, renderer) -> bool:
     data = fetch_fii(ticker)
+    if not data.cotacao:
+        typer.echo(f"{ticker} — cotação indisponível para este FII.")
+        return True
     idx = fetch_indices_br()
     indice_base = idx.melhor_indice
     div_anual = (data.cotacao * data.dividend_yield / 100) if data.dividend_yield and data.cotacao else None
+    div_12m = (data.cotacao * data.dividend_yield_12m / 100) if getattr(data, "dividend_yield_12m", None) and data.cotacao else None
     tetos = {
         "teto_por_dy": teto_por_dy(div_anual, indice_base) if data.cotacao else None,
+        "teto_por_dy_cdi_12m": teto_por_dy(div_12m, idx.cdi),
         "teto_bazin": teto_bazin(data.dividendo_estimado, indice_base),
         "vpa": data.vpa,
         "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
@@ -122,6 +127,7 @@ def _render_fii(ticker: str, renderer) -> bool:
         ultimo_dividendo=data.ultimo_dividendo,
         mes_ano_dividendo=data.mes_ano_dividendo,
         dy_mensal=data.dy_mensal,
+        dividend_yield_12m=getattr(data, "dividend_yield_12m", None),
     )
     return True
 
@@ -187,6 +193,8 @@ def main(
         "teto_por_dy": teto_por_dy(data.dividendo_medio, indice_base) if data.dividendo_medio else None,
         "teto_bazin": teto_bazin(data.dividend_rate, indice_base),
         "teto_graham": teto_graham(data.lpa, data.vpa),
+        "teto_vpa_roe_taxa": teto_vpa_roe(data.vpa, data.roe_ajustado, taxa_livre),
+        "teto_vpa_roe_inflacao": teto_vpa_roe(data.vpa, data.roe_ajustado, inflacao),
         "teto_dcf": teto_dcf(
             data.free_cashflow, data.shares_outstanding, data.beta,
             data.earnings_growth, taxa_livre or 0, premio, inflacao
@@ -209,6 +217,19 @@ def main(
         termometro=termometro, nome=data.nome,
         dividend_yield=data.dividend_yield,
         dy_medio=data.dy_medio,
+        roe=data.roe,
+        roe_medio_5a=data.roe_medio_5a,
+        roe_tendencia=data.roe_tendencia,
+        roe_r2=data.roe_r2,
+        roe_ajustado=data.roe_ajustado,
+        alavancagem={
+            "divida_total": getattr(data, "divida_total", None),
+            "caixa": getattr(data, "caixa", None),
+            "divida_liquida": getattr(data, "divida_liquida", None),
+            "divida_sobre_patrimonio": getattr(data, "divida_sobre_patrimonio", None),
+            "divida_liquida_sobre_ebitda": getattr(data, "divida_liquida_sobre_ebitda", None),
+            "status": getattr(data, "alavancagem_status", "Indisponível"),
+        },
         ultimo_dividendo=data.ultimo_dividendo,
         mes_ano_dividendo=data.mes_ano_dividendo,
     )

@@ -78,6 +78,7 @@ def exibir(
 ) -> None:
     # Header
     console.print()
+    console.print()
     console.print(f"[bold]{info.nome}[/bold]")
     console.print(
         f"CNPJ: {info.cnpj} | Classe: {info.classe_anbima}"
