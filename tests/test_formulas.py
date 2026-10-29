@@ -238,3 +238,16 @@ def test_sinal_cobertura_faixas():
     assert sinal_cobertura(0.70) == "green"
     assert sinal_cobertura(0.50) == "yellow"
     assert sinal_cobertura(0.499) == "red"
+def test_preco_potencial_soma_o_proprio_potencial():
+    from preco_teto.formulas import preco_potencial
+
+    # cotação 6.49 -> teto 7.83 tem potencial +20.65% -> 7.83 * 1.2065
+    assert preco_potencial(7.83, 20.65) == pytest.approx(9.45, abs=0.01)
+
+
+def test_preco_potencial_sem_potencial_ou_sem_valor():
+    from preco_teto.formulas import preco_potencial
+
+    assert preco_potencial(10.0, 0.0) == 10.0
+    assert preco_potencial(None, 10.0) is None
+    assert preco_potencial(10.0, None) is None

@@ -85,6 +85,13 @@ def teto_graham(lpa: float | None, vpa: float | None) -> float | None:
         return None
 
 
+def preco_potencial(valor: float | None, potencial_pct: float | None) -> float | None:
+    """Preço potencial de uma linha: valor + potencial, isto é valor × (1 + potencial/100)."""
+    if valor is None or potencial_pct is None:
+        return None
+    return round(valor * (1 + potencial_pct / 100), 2)
+
+
 def teto_vpa_roe(vpa: float | None, roe: float | None, taxa: float | None) -> float | None:
     """Teto pelo valor patrimonial e retorno sobre o patrimonio."""
     try:

@@ -7,7 +7,9 @@ from rich.table import Table
 from rich.text import Text
 from rich import box
 
-from preco_teto.formulas import sinal_cobertura, sinal_p_fcf, sinal_peg
+from preco_teto.formulas import (
+    sinal_cobertura, sinal_p_fcf, sinal_peg, preco_potencial,
+)
 from preco_teto.output.alavancagem import linhas
 
 console = Console()
@@ -26,6 +28,24 @@ def _teto_row(label: str, valor: float | None, cotacao: float | None) -> tuple:
         return label, f"[green]{fmt}[/green]", f"[green]{pct_str}[/green]", "[green]✓[/green]"
     return label, f"[red]{fmt}[/red]", f"[red]{pct_str}[/red]", "[red]✗[/red]"
 
+
+def _potencial_cell(valor: float | None, cotacao: float | None) -> str:
+    """Célula da coluna Preço Potencial: valor + o potencial da própria linha."""
+    if valor is None or not cotacao:
+        return "—"
+    pct = (valor - cotacao) / cotacao * 100
+    preco = preco_potencial(valor, pct)
+    if preco is None:
+        return "—"
+    fmt = f"R$ {preco:.2f}" if cotacao > 1 else f"$ {preco:.2f}"
+    if preco >= cotacao:
+        return f"[green]{fmt}[/green]"
+    return f"[red]{fmt}[/red]"
+
+
+def _linha_5_colunas(label: str, valor: float | None, cotacao: float | None) -> tuple:
+    rotulo, valor_cell, pct_cell, mark = _teto_row(label, valor, cotacao)
+    return rotulo, valor_cell, pct_cell, _potencial_cell(valor, cotacao), mark
 
 def _title(ticker, nome, moeda, cotacao):
     prefixo = f"{ticker} - {nome}" if nome else ticker
@@ -67,6 +87,7 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
     t.add_column("Potencial", justify="right")
+    t.add_column("Preço Potencial", justify="right")
     t.add_column("")
 
     labels = {
@@ -80,7 +101,7 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
         "teto_margem":    "Teto Margem     (52w high/low)",
     }
     for key, label in labels.items():
-        t.add_row(*_teto_row(label, tetos.get(key), cotacao))
+        t.add_row(*_linha_5_colunas(label, tetos.get(key), cotacao))
 
     console.print(t)
 
@@ -114,12 +135,17 @@ def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
     t.add_column("Potencial", justify="right")
+    t.add_column("Preço Potencial", justify="right")
     t.add_column("")
-    t.add_row(*_teto_row("Teto por DY  (heurística)", tetos.get("teto_por_dy"), cotacao))
-    t.add_row(*_teto_row("Teto DY 12m     (CDI)", tetos.get("teto_por_dy_cdi_12m"), cotacao))
-    t.add_row(*_teto_row("Teto Bazin   (proventos)", tetos.get("teto_bazin"), cotacao))
-    t.add_row(*_teto_row("VPA", tetos.get("vpa"), cotacao))
-    t.add_row(*_teto_row("Teto Margem  (52w high/low)", tetos.get("teto_margem"), cotacao))
+
+    for label, key in [
+        ("Teto por DY  (heurística)", "teto_por_dy"),
+        ("Teto DY 12m     (CDI)", "teto_por_dy_cdi_12m"),
+        ("Teto Bazin   (proventos)", "teto_bazin"),
+        ("VPA", "vpa"),
+        ("Teto Margem  (52w high/low)", "teto_margem"),
+    ]:
+        t.add_row(*_linha_5_colunas(label, tetos.get(key), cotacao))
     console.print(t)
     footer = f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%"
     if ultimo_dividendo is not None and mes_ano_dividendo is not None:
@@ -235,3 +261,113 @@ def render_indices(br):
     t.add_row("CDI", f"{br.cdi}%" if br.cdi else "—")
     t.add_row("IPCA (12m)", f"{br.ipca}%" if br.ipca else "—")
     console.print(t)
+
+
+def _pct(v):
+    return "—" if v is None else f"{v * 100:.2f}%"
+
+
+def render_backtest(report):
+    """Poder preditivo: faixas de ratio × retorno futuro (sem trading)."""
+    console.print()
+    console.print()
+    meta = report.meta
+    mode = "cascata PL→DY→VPA/ROE" if getattr(meta, "cascade", False) else "PL"
+    title = (
+        f"Poder preditivo {mode} — {meta.ticker}  "
+        f"semanas_com_teto={meta.n_weeks_with_teto}  cadência=semanal  lag={meta.lag_days}d"
+    )
+    console.print(f"[bold]{title}[/bold]")
+    console.print(
+        f"[dim]PIT YE+{meta.lag_days}d · ratio=preço/teto · retorno=Adj futuro · "
+        f"sem compra/venda/cruzamento · bench={meta.benchmark}[/dim]"
+    )
+
+    ni_rows = getattr(report, "ni_sticky", None) or []
+    if ni_rows:
+        ni_t = Table(
+            title="Net Income anual sticky (YE+90d → não expira)",
+            box=box.SIMPLE_HEAVY,
+        )
+        ni_t.add_column("year_end", style="bold")
+        ni_t.add_column("available_date")
+        ni_t.add_column("net_income", justify="right")
+        ni_t.add_column("usado_de")
+        ni_t.add_column("usado_até")
+        for r in ni_rows:
+            ni_t.add_row(
+                str(r.get("year_end")),
+                str(r.get("available_date")),
+                f"{r.get('net_income'):,.0f}" if r.get("net_income") is not None else "—",
+                str(r.get("used_from")),
+                str(r.get("used_until")),
+            )
+        console.print(ni_t)
+
+    horizons = (3, 6, 12, 24)
+    for h in horizons:
+        t = Table(
+            title=f"Horizonte {h}m — retorno futuro por faixa de ratio",
+            box=box.SIMPLE_HEAVY,
+        )
+        t.add_column("Faixa ratio", style="bold")
+        t.add_column("N barras", justify="right")
+        t.add_column("N episódios", justify="right")
+        t.add_column("Mean", justify="right")
+        t.add_column("Median", justify="right")
+        t.add_column("Win%", justify="right")
+        t.add_column("MFE", justify="right")
+        t.add_column("MAE", justify="right")
+        t.add_column("Exc. Ibov mean", justify="right")
+        t.add_column("Exc. Ibov med", justify="right")
+        for block in report.buckets or []:
+            s = (block.by_horizon or {}).get(h)
+            if s is None:
+                continue
+            t.add_row(
+                block.bucket,
+                str(s.n_bars),
+                str(s.n_episodes),
+                _pct(s.mean),
+                _pct(s.median),
+                _pct(s.win_rate),
+                _pct(s.mfe_mean),
+                _pct(s.mae_mean),
+                _pct(s.excess_ibov_mean),
+                _pct(s.excess_ibov_median),
+            )
+        console.print(t)
+
+    console.print(
+        "[dim]Episódios = trechos contíguos na mesma faixa (não são trades). "
+        "Exc. Ibov = retorno ativo − retorno índice nas mesmas datas.[/dim]"
+    )
+
+    sp = Table(title="Spearman(ratio, retorno futuro)", box=box.SIMPLE_HEAVY)
+    sp.add_column("Horizonte", style="bold")
+    sp.add_column("N", justify="right")
+    sp.add_column("ρ", justify="right")
+    sp.add_column("p-value", justify="right")
+    for row in report.spearman or []:
+        sp.add_row(
+            f"{row.horizon_months}m",
+            str(row.n),
+            f"{row.rho:.3f}" if row.rho is not None else "—",
+            f"{row.pvalue:.4g}" if row.pvalue is not None else "—",
+        )
+    console.print(sp)
+    console.print(
+        "[dim]ρ negativo ⇒ ratio mais baixo (mais barato vs teto) associado a retorno futuro maior.[/dim]"
+    )
+
+    console.print(
+        f"Período: {meta.date_start} → {meta.date_end}   "
+        f"semanas_com_teto={meta.n_weeks_with_teto}"
+        + (
+            f"  ratio_min={meta.ratio_min:.3f}  ratio_med={meta.ratio_median:.3f}"
+            if meta.ratio_min is not None and meta.ratio_median is not None
+            else ""
+        )
+    )
+    for note in getattr(meta, "notes", None) or []:
+        console.print(f"[yellow]Nota:[/yellow] {note}")

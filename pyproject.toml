@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-preco-teto = "preco_teto.cli:app"
+preco-teto = "preco_teto.cli:entry"
 fundos-br  = "preco_teto.fundos.cli:app"
 
 [build-system]

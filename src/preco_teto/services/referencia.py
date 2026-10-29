@@ -40,7 +40,12 @@ def fetch_indices_br() -> IndicesBR:
 
     try:
         cached = json.loads(_INDICES_BR_CACHE_PATH.read_text())
-        if cached.get("date") == today.isoformat():
+        # Cache só vale quando os dois índices foram obtidos; valor nulo é retentado.
+        if (
+            cached.get("date") == today.isoformat()
+            and cached.get("cdi") is not None
+            and cached.get("ipca") is not None
+        ):
             _indices_br_cache_date = today
             _indices_br_cache = IndicesBR(
                 cdi=cached.get("cdi"),
@@ -54,6 +59,9 @@ def fetch_indices_br() -> IndicesBR:
     cdi = banco_central.fetch_cdi()
     ipca = banco_central.fetch_ipca()
     melhor = banco_central.melhor_indice_br(cdi, ipca)
+    if cdi is None or ipca is None:
+        # Falha transitória do BCB: não memoriza, para tentar de novo na próxima chamada.
+        return IndicesBR(cdi=cdi, ipca=ipca, melhor_indice=melhor)
     _indices_br_cache_date = today
     _indices_br_cache = IndicesBR(cdi=cdi, ipca=ipca, melhor_indice=melhor)
     try:

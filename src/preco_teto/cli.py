@@ -1,4 +1,5 @@
 from typing import Annotated
+import sys
 import typer
 
 from preco_teto.services.acao import fetch_acao
@@ -11,7 +12,8 @@ from preco_teto.formulas import (
     teto_margem, teto_vpa_roe, termometro_margem, p_fcf, media_ponderada_renorm
 )
 
-app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
+quote_app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
+app = quote_app  # CliRunner / imports: preserve preco-teto VALE3 tests
 
 
 def _get_renderer(json_flag: bool, plain_flag: bool):
@@ -132,7 +134,7 @@ def _render_fii(ticker: str, renderer) -> bool:
     return True
 
 
-@app.command()
+@quote_app.command()
 def main(
     ticker: str,
     json: Annotated[bool, typer.Option("--json")] = False,
@@ -243,3 +245,13 @@ def _indices(
     br = fetch_indices_br()
     renderer = _get_renderer(json, plain)
     renderer.render_indices(br)
+
+
+def entry() -> None:
+    """Console entry: `preco-teto TICKER` | `preco-teto backtest TICKER`."""
+    if len(sys.argv) > 1 and sys.argv[1].lower() == "backtest":
+        from preco_teto.backtest.cli import app as backtest_app
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        backtest_app()
+        return
+    quote_app()
