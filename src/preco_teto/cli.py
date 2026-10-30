@@ -7,9 +7,11 @@ from preco_teto.services.etf import fetch_etf
 from preco_teto.services.etf_br import EtfBrFetchError, fetch_etf_br
 from preco_teto.services.fii import fetch_fii
 from preco_teto.services.referencia import fetch_indices_br, fetch_indices_us
+from preco_teto.services.usd import fetch_usd
 from preco_teto.formulas import (
     teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf,
-    teto_margem, teto_vpa_roe, termometro_margem, p_fcf, media_ponderada_renorm
+    teto_margem, teto_vpa_roe, termometro_margem, p_fcf, media_ponderada_renorm,
+    teto_carrego, teto_por_regressao, teto_por_fluxo, expectativa_por_posicionamento,
 )
 
 quote_app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
@@ -98,6 +100,35 @@ def _render_etfbr(ticker: str, renderer) -> None:
     renderer.render_etfbr(data, tetos, idx, termometro=termometro)
 
 
+def _render_usd(renderer) -> None:
+    data = fetch_usd()
+    if data.spot is None:
+        typer.echo("USD — não foi possível obter a PTAX do Banco Central.")
+        return
+    idx = fetch_indices_br()
+    fed = fetch_indices_us().fed_funds
+
+    # DXY ancorado no dólar global de hoje: mede o gap de valor, não uma reversão
+    teto_dxy = r2_dxy = None
+    if not data.ptax.empty and not data.dxy_hist.empty and data.dxy is not None:
+        teto_dxy, r2_dxy = teto_por_regressao(data.dxy_hist, data.ptax, data.dxy)
+    # COT como expectativa futura pelo posicionamento de asset managers (R² maior)
+    teto_cot = r2_cot = None
+    if data.cot is not None and not data.ptax.empty:
+        teto_cot, r2_cot = expectativa_por_posicionamento(
+            data.cot.serie_am_net, data.ptax, data.spot
+        )
+
+    tetos = {
+        "teto_margem": teto_margem(data.spot, data.low_52, data.high_52),
+        "teto_carrego": teto_carrego(data.spot, idx.cdi, fed),
+        "teto_ewz": teto_por_fluxo(data.k_hat, data.ibov, data.ewz),
+        "teto_dxy": teto_dxy,
+        "teto_cot": teto_cot,
+    }
+    renderer.render_usd(data, tetos, idx, fed=fed, r2_dxy=r2_dxy, r2_cot=r2_cot)
+
+
 def _render_fii(ticker: str, renderer) -> bool:
     data = fetch_fii(ticker)
     if not data.cotacao:
@@ -136,24 +167,35 @@ def _render_fii(ticker: str, renderer) -> bool:
 
 @quote_app.command()
 def main(
-    ticker: str,
+    ticker: Annotated[str | None, typer.Argument()] = None,
     json: Annotated[bool, typer.Option("--json")] = False,
     plain: Annotated[bool, typer.Option("--plain")] = False,
     etf: Annotated[bool, typer.Option("--etf")] = False,
     fii: Annotated[bool, typer.Option("--fii")] = False,
     etfbr: Annotated[bool, typer.Option("--etfbr")] = False,
+    usd: Annotated[bool, typer.Option("--usd")] = False,
 ):
-    """Consulta preço teto de um ativo (ação BR/US ou FII). Use 'indices' para ver CDI e IPCA."""
+    """Consulta preço teto de um ativo (ação BR/US ou FII).
+
+    Use 'indices' para ver CDI e IPCA e '--usd' para o painel USD/BRL.
+    """
+    renderer = _get_renderer(json, plain)
+
+    if sum([etf, fii, etfbr, usd]) > 1:
+        raise typer.BadParameter("Use apenas uma flag entre --etf, --fii, --etfbr e --usd.")
+
+    if usd:
+        _render_usd(renderer)
+        return
+
+    if ticker is None:
+        raise typer.BadParameter("Informe um ticker ou use --usd.")
+
     ticker = ticker.upper()
 
     if ticker == "INDICES":
         _indices(json=json, plain=plain)
         return
-
-    renderer = _get_renderer(json, plain)
-
-    if sum([etf, fii, etfbr]) > 1:
-        raise typer.BadParameter("Use apenas uma flag entre --etf, --fii e --etfbr.")
 
     if etfbr:
         _render_etfbr(ticker, renderer)

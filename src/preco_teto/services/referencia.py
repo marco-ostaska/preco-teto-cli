@@ -3,10 +3,14 @@ from datetime import date
 import json
 import os
 from pathlib import Path
+
+import yfinance as yf
+
 from preco_teto.services import banco_central
 
-FED_FUNDS_US = 5.25  # atualizar manualmente quando Fed mudar
+FED_FUNDS_US = 5.25  # fallback manual quando o T-bill não responde
 CPI_US = 3.1         # atualizar manualmente quando necessário
+_TBILL_13_SEMANAS = "^IRX"
 
 
 @dataclass
@@ -77,5 +81,19 @@ def fetch_indices_br() -> IndicesBR:
     return _indices_br_cache
 
 
+def fetch_fed_funds() -> float:
+    """
+    Alvo do Fed via T-bill de 13 semanas (^IRX), que acompanha o front end.
+    A constante manual só vale quando o Yahoo não responde.
+    """
+    try:
+        fechamentos = yf.Ticker(_TBILL_13_SEMANAS).history(period="5d")["Close"].dropna()
+        if fechamentos.empty:
+            return FED_FUNDS_US
+        return round(float(fechamentos.iloc[-1]), 2)
+    except Exception:
+        return FED_FUNDS_US
+
+
 def fetch_indices_us() -> IndicesUS:
-    return IndicesUS(fed_funds=FED_FUNDS_US, cpi=CPI_US)
+    return IndicesUS(fed_funds=fetch_fed_funds(), cpi=CPI_US)

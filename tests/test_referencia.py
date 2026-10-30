@@ -134,12 +134,63 @@ def test_indices_br_reuses_persisted_values_after_process_restart(tmp_path, monk
     ipca.assert_called_once_with()
 
 
-def test_indices_us_hardcoded():
-    from preco_teto.services.referencia import IndicesUS, fetch_indices_us
-    idx = fetch_indices_us()
-    assert isinstance(idx, IndicesUS)
+def test_fetch_fed_funds_usa_tbill_de_13_semanas(monkeypatch):
+    import pandas as pd
+
+    import preco_teto.services.referencia as referencia
+
+    ticker = MagicMock()
+    ticker.history.return_value = pd.DataFrame({"Close": [3.90, 3.95, 3.98]})
+    monkeypatch.setattr(referencia.yf, "Ticker", MagicMock(return_value=ticker))
+
+    assert referencia.fetch_fed_funds() == pytest.approx(3.98)
+
+
+def test_fetch_fed_funds_cai_para_constante_quando_yfinance_falha(monkeypatch):
+    import preco_teto.services.referencia as referencia
+
+    monkeypatch.setattr(
+        referencia.yf, "Ticker", MagicMock(side_effect=RuntimeError("yahoo fora"))
+    )
+
+    assert referencia.fetch_fed_funds() == referencia.FED_FUNDS_US
+
+
+def test_fetch_fed_funds_cai_para_constante_com_historico_vazio(monkeypatch):
+    import pandas as pd
+
+    import preco_teto.services.referencia as referencia
+
+    ticker = MagicMock()
+    ticker.history.return_value = pd.DataFrame(columns=["Close"])
+    monkeypatch.setattr(referencia.yf, "Ticker", MagicMock(return_value=ticker))
+
+    assert referencia.fetch_fed_funds() == referencia.FED_FUNDS_US
+
+
+def test_indices_us_usa_fed_funds_dinamico(monkeypatch):
+    import preco_teto.services.referencia as referencia
+
+    monkeypatch.setattr(referencia.yf, "Ticker", MagicMock(side_effect=RuntimeError("offline")))
+
+    idx = referencia.fetch_indices_us()
+
+    assert isinstance(idx, referencia.IndicesUS)
     assert idx.fed_funds > 0
     assert idx.cpi > 0
+    assert idx.fed_funds == referencia.FED_FUNDS_US
+
+
+def test_indices_us_propaga_taxa_do_tbill(monkeypatch):
+    import pandas as pd
+
+    import preco_teto.services.referencia as referencia
+
+    ticker = MagicMock()
+    ticker.history.return_value = pd.DataFrame({"Close": [3.98]})
+    monkeypatch.setattr(referencia.yf, "Ticker", MagicMock(return_value=ticker))
+
+    assert referencia.fetch_indices_us().fed_funds == pytest.approx(3.98)
 
 
 def test_fetch_cdi_usa_endpoint_ultimos_e_tenta_de_novo_apos_timeout(monkeypatch):

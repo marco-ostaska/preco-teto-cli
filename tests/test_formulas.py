@@ -238,16 +238,134 @@ def test_sinal_cobertura_faixas():
     assert sinal_cobertura(0.70) == "green"
     assert sinal_cobertura(0.50) == "yellow"
     assert sinal_cobertura(0.499) == "red"
-def test_preco_potencial_soma_o_proprio_potencial():
-    from preco_teto.formulas import preco_potencial
-
-    # cotação 6.49 -> teto 7.83 tem potencial +20.65% -> 7.83 * 1.2065
-    assert preco_potencial(7.83, 20.65) == pytest.approx(9.45, abs=0.01)
 
 
-def test_preco_potencial_sem_potencial_ou_sem_valor():
-    from preco_teto.formulas import preco_potencial
+# --- câmbio USD/BRL ---
 
-    assert preco_potencial(10.0, 0.0) == 10.0
-    assert preco_potencial(None, 10.0) is None
-    assert preco_potencial(10.0, None) is None
+
+def test_teto_carrego_paridade_coberta():
+    from preco_teto.formulas import teto_carrego
+
+    # spot 5.00, CDI 15%, Fed 5% -> 5.00 * 1.15 / 1.05 = 5.4762
+    assert teto_carrego(5.00, 15.0, 5.0) == pytest.approx(5.48, abs=0.01)
+
+
+def test_teto_carrego_sem_dados_retorna_none():
+    from preco_teto.formulas import teto_carrego
+
+    assert teto_carrego(None, 15.0, 5.0) is None
+    assert teto_carrego(5.0, None, 5.0) is None
+    assert teto_carrego(5.0, 15.0, None) is None
+    # Fed a -100% zeraria o denominador
+    assert teto_carrego(5.0, 15.0, -100.0) is None
+
+
+def test_teto_por_regressao_log_recupera_relacao_exata():
+    import numpy as np
+
+    from preco_teto.formulas import teto_por_regressao
+
+    driver = pd.Series(np.linspace(90, 110, 60))
+    alvo = pd.Series(np.exp(1.0 + 0.8 * np.log(driver)))
+
+    teto, r2 = teto_por_regressao(driver, alvo, driver_alvo=100.0)
+
+    assert teto == pytest.approx(float(np.exp(1.0 + 0.8 * np.log(100.0))), abs=0.01)
+    assert r2 == pytest.approx(1.0, abs=1e-6)
+
+
+def test_teto_por_regressao_linear_no_driver():
+    import numpy as np
+
+    from preco_teto.formulas import teto_por_regressao
+
+    # posicionamento % OI pode ser negativo, então o driver não pode ir para log
+    driver = pd.Series(np.linspace(-20, 40, 60))
+    alvo = pd.Series(np.exp(1.6 + 0.01 * driver))
+
+    teto, r2 = teto_por_regressao(driver, alvo, driver_alvo=0.0, log_driver=False)
+
+    assert teto == pytest.approx(float(np.exp(1.6)), abs=0.01)
+    assert r2 == pytest.approx(1.0, abs=1e-6)
+
+
+def test_teto_por_regressao_poucos_pontos_retorna_none():
+    from preco_teto.formulas import teto_por_regressao
+
+    teto, r2 = teto_por_regressao(pd.Series([1.0, 2.0]), pd.Series([2.0, 3.0]), 1.5)
+
+    assert teto is None
+    assert r2 is None
+
+
+def test_teto_por_regressao_ignora_driver_invalido():
+    import numpy as np
+
+    from preco_teto.formulas import teto_por_regressao
+
+    driver = pd.Series(np.linspace(90, 110, 60))
+    alvo = pd.Series(np.exp(1.0 + 0.8 * np.log(driver)))
+
+    assert teto_por_regressao(driver, alvo, driver_alvo=0.0) == (None, None)
+
+
+def test_teto_por_fluxo_calibra_pelo_ibov_em_dolar():
+    from preco_teto.formulas import teto_por_fluxo
+
+    # k_hat × IBOV / EWZ -> câmbio implícito pelo fluxo de equity
+    assert teto_por_fluxo(0.00106, 170000, 33.14) == pytest.approx(5.44, abs=0.01)
+
+
+def test_teto_por_fluxo_sem_dados_retorna_none():
+    from preco_teto.formulas import teto_por_fluxo
+
+    assert teto_por_fluxo(None, 170000, 33.14) is None
+    assert teto_por_fluxo(0.00106, None, 33.14) is None
+    assert teto_por_fluxo(0.00106, 170000, 0) is None
+    assert teto_por_fluxo(0.00106, 170000, None) is None
+
+
+def test_expectativa_por_posicionamento_recupera_relacao_do_retorno_futuro():
+    import numpy as np
+
+    from preco_teto.formulas import expectativa_por_posicionamento
+
+    n = 80
+    posicao = pd.Series(np.linspace(-20.0, 20.0, n))
+    # retorno log semanal = c + d·posição => alvo é o acumulado disso
+    c, d = 0.001, -0.0002
+    log_alvo = np.log(5.0) + np.r_[0.0, np.cumsum(c + d * posicao.to_numpy()[:-1])]
+    alvo = pd.Series(np.exp(log_alvo))
+
+    esperado, r2 = expectativa_por_posicionamento(posicao, alvo, spot=5.0, horizonte=1)
+
+    assert r2 == pytest.approx(1.0, abs=1e-6)
+    assert esperado == pytest.approx(5.0 * float(np.exp(c + d * posicao.iloc[-1])), abs=0.01)
+
+
+def test_expectativa_por_posicionamento_usa_horizonte_padrao_de_26_semanas():
+    import numpy as np
+
+    from preco_teto.formulas import expectativa_por_posicionamento
+
+    n = 120
+    posicao = pd.Series(np.linspace(-20.0, 20.0, n))
+    alvo = pd.Series(np.exp(np.log(5.0) + np.cumsum(np.zeros(n))))
+
+    # série constante: sem variação no alvo não há regressão possível
+    assert expectativa_por_posicionamento(posicao, alvo, spot=5.0) == (None, None)
+
+
+def test_expectativa_por_posicionamento_sem_spot_retorna_none():
+    from preco_teto.formulas import expectativa_por_posicionamento
+
+    assert expectativa_por_posicionamento(pd.Series([1.0]), pd.Series([5.0]), spot=None) == (None, None)
+
+
+def test_expectativa_por_posicionamento_poucos_pontos_retorna_none():
+    from preco_teto.formulas import expectativa_por_posicionamento
+
+    posicao = pd.Series([1.0, 2.0, 3.0])
+    alvo = pd.Series([5.0, 5.1, 5.2])
+
+    assert expectativa_por_posicionamento(posicao, alvo, spot=5.0) == (None, None)

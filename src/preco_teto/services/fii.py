@@ -28,6 +28,8 @@ class FiisComService:
         headers = {"User-Agent": "Mozilla/5.0"}
         try:
             resp = requests.get(url, headers=headers, timeout=10)
+            if not resp.ok:
+                return {}
             resp.encoding = "utf-8"
             return self._parse(resp.text)
         except Exception:
@@ -269,7 +271,6 @@ def fetch_fii(ticker: str) -> FiiData:
     svc = FiisComService(ticker)
     cotacao = svc.cotacao
     vpa = svc.vpa
-    pvp = round(cotacao / vpa, 2) if cotacao and vpa else None
 
     # Dados do scraper
     ultimo_dividendo = svc.ultimo_dividendo
@@ -282,6 +283,13 @@ def fetch_fii(ticker: str) -> FiiData:
     try:
         yf_ticker = yf.Ticker(f"{ticker}.SA")
         yf_info = yf_ticker.info or {}
+        # Fundos novos podem não existir no fiis.com.br: o preço vem do yfinance
+        if cotacao is None:
+            cotacao = (
+                yf_info.get("currentPrice")
+                or yf_info.get("previousClose")
+                or yf_info.get("regularMarketPrice")
+            )
         low_52 = yf_info.get("fiftyTwoWeekLow")
         high_52 = yf_info.get("fiftyTwoWeekHigh")
         history = yf_ticker.history(period="1y", auto_adjust=False)
@@ -322,7 +330,7 @@ def fetch_fii(ticker: str) -> FiiData:
         nome=svc.nome,
         cotacao=cotacao,
         vpa=vpa,
-        pvp=pvp,
+        pvp=round(cotacao / vpa, 2) if cotacao and vpa else None,
         dividend_yield=svc.dividend_yield,
         dividendo_estimado=svc.dividendo_estimado,
         ultimo_dividendo=ultimo_dividendo,

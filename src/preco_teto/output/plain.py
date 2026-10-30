@@ -1,4 +1,4 @@
-from preco_teto.formulas import sinal_p_fcf, sinal_peg, preco_potencial
+from preco_teto.formulas import sinal_p_fcf, sinal_peg
 from preco_teto.output.alavancagem import linhas
 
 
@@ -15,18 +15,14 @@ def _header(ticker, nome, cotacao, moeda):
 
 
 def _cabecalho_colunas():
-    return (
-        f"{'Teto':<30} {'Valor':>12}  {'Pot':<3} {'Potencial':>9} "
-        f"{'Preço Potencial':>16}"
-    )
+    return f"{'Teto':<30} {'Valor':>12}  {'Pot':<3} {'Potencial':>9}"
 
 
 def _linha_teto(label, valor, cotacao, is_br):
     mark = "OK" if (valor and cotacao and valor >= cotacao) else "X" if valor else ""
     pct = (valor - cotacao) / cotacao * 100 if valor and cotacao else None
     pct_str = f"{pct:+.2f}%" if pct is not None else ""
-    pot = _fmt(preco_potencial(valor, pct), is_br)
-    return f"{label:<30} {_fmt(valor, is_br):>12}  {mark:<3} {pct_str:>9} {pot:>16}"
+    return f"{label:<30} {_fmt(valor, is_br):>12}  {mark:<3} {pct_str:>9}"
 
 
 def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
@@ -243,3 +239,72 @@ def render_backtest(report):
     )
     for note in getattr(meta, "notes", None) or []:
         print(f"Nota: {note}")
+
+
+def render_usd(data, tetos, indices, fed=None, r2_dxy=None, r2_cot=None):
+    from preco_teto.formulas import termometro_margem
+
+    print()
+    print()
+    print(f"PTAX  USD/BRL  R$ {data.spot:.4f}")
+    if data.data_spot:
+        print(
+            f"Dólar comercial (BCB PTAX)  "
+            f"{data.data_spot.day:02d}/{data.data_spot.month:02d}/{data.data_spot.year}"
+        )
+    print("-" * 75)
+    print(_cabecalho_colunas())
+
+    linhas = [
+        ("Teto Margem (52w PTAX)", "teto_margem", None),
+        ("Teto Carrego (CDI×Fed)", "teto_carrego", None),
+        ("Teto EWZ (fluxo)", "teto_ewz", None),
+    ]
+    if data.dxy is not None:
+        linhas.append((
+            "Teto DXY (hoje)",
+            "teto_dxy",
+            f"R² {r2_dxy:.2f}" if r2_dxy is not None else None,
+        ))
+    if data.cot is not None:
+        linhas.append((
+            "Teto COT (26 sem)",
+            "teto_cot",
+            f"R² {r2_cot:.2f}" if r2_cot is not None else None,
+        ))
+    for label, chave, nota in linhas:
+        linha = _linha_teto(label, tetos.get(chave), data.spot, True)
+        print(f"{linha} {nota}" if nota else linha)
+
+    print("-" * 75)
+    posicao = f"{data.margem_52 * 100:.0f}%" if data.margem_52 is not None else "—"
+    faixa = (
+        f"R$ {data.low_52:.4f}-{data.high_52:.4f}"
+        if data.low_52 is not None and data.high_52 is not None
+        else "—"
+    )
+    print(
+        f"Termômetro: {termometro_margem(data.margem_52)}  "
+        f"Posição 52w: {posicao}  Faixa: {faixa}"
+    )
+    fed_txt = f"{fed}%" if fed is not None else "—"
+    print(f"CDI: {indices.cdi}%  Fed: {fed_txt}")
+    if data.dxy is not None:
+        pctl = f"  (%il 3a: {data.dxy_pctl:.0f})" if data.dxy_pctl is not None else ""
+        print(f"DXY: {data.dxy:.2f}{pctl}")
+    if data.cot is not None:
+        cot_dt = f"{data.cot.data.day:02d}/{data.cot.data.month:02d}/{data.cot.data.year}"
+        print(
+            f"COT BRL {cot_dt}: asset_mgr {data.cot.am_net_pct:+.1f}% OI "
+            f"(%il {data.cot.am_pctl:.0f})  "
+            f"lev_net {data.cot.lev_net_pct:+.1f}% OI (%il {data.cot.lev_pctl:.0f})"
+        )
+    if data.ewz is not None and data.ibov is not None:
+        desvio = f"  Desvio fluxo: z={data.desvio_z:+.2f}" if data.desvio_z is not None else ""
+        print(f"EWZ: {data.ewz:.2f}  IBOV: {data.ibov:.0f}{desvio}")
+    uup_px, uup_nav = data.uup
+    udn_px, udn_nav = data.udn
+    if uup_px is not None or udn_px is not None:
+        uup_txt = f"{uup_px:.2f} (NAV {uup_nav:.2f})" if uup_px and uup_nav else "—"
+        udn_txt = f"{udn_px:.2f} (NAV {udn_nav:.2f})" if udn_px and udn_nav else "—"
+        print(f"UUP: {uup_txt}  UDN: {udn_txt}")

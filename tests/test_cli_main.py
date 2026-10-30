@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from typer.testing import CliRunner
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from preco_teto.cli import app
@@ -372,4 +374,160 @@ def test_cli_etfbr_exclusivo_com_etf():
     result = runner.invoke(app, ["DIVO11", "--etf", "--etfbr"])
 
     assert result.exit_code != 0
-    assert "Use apenas uma flag entre --etf, --fii e --etfbr." in result.output
+    assert "Use apenas uma flag entre --etf, --fii, --etfbr e --usd." in result.output
+
+
+def test_cli_usd_chama_render_usd(mocker):
+    idx_datas = pd.bdate_range("2023-11-01", periods=700)
+    dxy = pd.Series(np.linspace(95.0, 105.0, len(idx_datas)), index=idx_datas)
+    ptax = pd.Series(np.exp(0.759 + 0.2 * np.log(dxy)), index=idx_datas)
+    data = SimpleNamespace(
+        spot=5.3744,
+        data_spot=None,
+        ptax=ptax,
+        dxy_hist=dxy,
+        low_52=4.8973,
+        high_52=5.5739,
+        margem_52=0.71,
+        dxy=102.04,
+        dxy_pctl=55.0,
+        cot=None,
+        k_hat=0.00106,
+        ibov=169186.0,
+        ewz=33.14,
+        desvio_z=1.02,
+        uup=(29.04, 29.04),
+        udn=(17.82, 17.81),
+    )
+    idx = SimpleNamespace(cdi=13.65, ipca=5.85, melhor_indice=11.6)
+    fed = SimpleNamespace(fed_funds=3.98, cpi=3.1)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_usd", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli.fetch_indices_us", return_value=fed)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["USD", "--usd"])
+
+    assert result.exit_code == 0
+    tetos = renderer.render_usd.call_args.args[1]
+    assert tetos["teto_carrego"] == pytest.approx(5.87, abs=0.02)
+    assert tetos["teto_margem"] is not None
+    assert tetos["teto_ewz"] is not None
+    # DXY entra pela regressão log ancorada no DXY de hoje, com o R² junto
+    assert tetos["teto_dxy"] == pytest.approx(5.39, abs=0.02)
+    assert renderer.render_usd.call_args.kwargs["r2_dxy"] == pytest.approx(1.0, abs=1e-6)
+    assert renderer.render_usd.call_args.kwargs["fed"] == 3.98
+    assert tetos["teto_cot"] is None
+
+
+def test_cli_usd_sem_spot_avisa_e_nao_renderiza(mocker):
+    data = SimpleNamespace(spot=None, ptax=pd.Series(dtype=float), cot=None)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_usd", return_value=data)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["USD", "--usd"])
+
+    assert result.exit_code == 0
+    assert "PTAX" in result.output
+    renderer.render_usd.assert_not_called()
+
+
+def test_cli_usd_exclusivo_com_etf():
+    result = runner.invoke(app, ["USD", "--usd", "--etf"])
+
+    assert result.exit_code != 0
+    assert "--usd" in result.output
+
+
+def test_cli_usd_funciona_sem_ticker(mocker):
+    data = SimpleNamespace(
+        spot=5.3744,
+        data_spot=None,
+        ptax=pd.Series(dtype=float),
+        dxy_hist=pd.Series(dtype=float),
+        low_52=4.8973,
+        high_52=5.5739,
+        margem_52=0.71,
+        dxy=102.04,
+        dxy_pctl=55.0,
+        cot=None,
+        k_hat=0.00106,
+        ibov=169186.0,
+        ewz=33.14,
+        desvio_z=1.02,
+        uup=(29.04, 29.04),
+        udn=(17.82, 17.81),
+    )
+    idx = SimpleNamespace(cdi=13.65, ipca=5.85, melhor_indice=11.6)
+    fed = SimpleNamespace(fed_funds=3.98, cpi=3.1)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_usd", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli.fetch_indices_us", return_value=fed)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["--usd"])
+
+    assert result.exit_code == 0
+    renderer.render_usd.assert_called_once()
+
+
+def test_cli_sem_ticker_e_sem_flag_pede_ticker():
+    result = runner.invoke(app, [])
+
+    assert result.exit_code != 0
+    assert "TICKER" in result.output
+
+
+def test_cli_sem_ticker_com_etf_pede_ticker():
+    result = runner.invoke(app, ["--etf"])
+
+    assert result.exit_code != 0
+    assert "TICKER" in result.output
+
+
+def test_cli_usd_cot_alimenta_teto_pelo_posicionamento_em_26_semanas(mocker):
+    datas = pd.bdate_range("2023-11-01", periods=400)
+    cot_datas = datas[::5]
+    posicao = pd.Series(np.linspace(-20.0, 20.0, len(cot_datas)), index=cot_datas)
+    ptax = pd.Series(np.linspace(6.2, 5.2, len(cot_datas)), index=cot_datas)
+    data = SimpleNamespace(
+        spot=float(ptax.iloc[-1]),
+        data_spot=None,
+        ptax=ptax,
+        dxy_hist=pd.Series(dtype=float),
+        low_52=float(ptax.tail(52).min()),
+        high_52=float(ptax.tail(52).max()),
+        margem_52=0.0,
+        dxy=None,
+        dxy_pctl=None,
+        cot=SimpleNamespace(serie_am_net=posicao),
+        k_hat=None,
+        ibov=None,
+        ewz=None,
+        desvio_z=None,
+        uup=(None, None),
+        udn=(None, None),
+    )
+    idx = SimpleNamespace(cdi=13.65, ipca=5.85, melhor_indice=11.6)
+    fed = SimpleNamespace(fed_funds=3.98, cpi=3.1)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_usd", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli.fetch_indices_us", return_value=fed)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["--usd"])
+
+    assert result.exit_code == 0
+    tetos = renderer.render_usd.call_args.args[1]
+    # posição subindo com câmbio caindo => expectativa abaixo do spot
+    assert tetos["teto_cot"] is not None
+    assert tetos["teto_cot"] < data.spot
+    assert renderer.render_usd.call_args.kwargs["r2_cot"] is not None

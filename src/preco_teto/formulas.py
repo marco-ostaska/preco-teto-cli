@@ -1,4 +1,5 @@
 from math import sqrt
+import numpy as np
 import pandas as pd
 
 
@@ -85,13 +86,6 @@ def teto_graham(lpa: float | None, vpa: float | None) -> float | None:
         return None
 
 
-def preco_potencial(valor: float | None, potencial_pct: float | None) -> float | None:
-    """Preço potencial de uma linha: valor + potencial, isto é valor × (1 + potencial/100)."""
-    if valor is None or potencial_pct is None:
-        return None
-    return round(valor * (1 + potencial_pct / 100), 2)
-
-
 def teto_vpa_roe(vpa: float | None, roe: float | None, taxa: float | None) -> float | None:
     """Teto pelo valor patrimonial e retorno sobre o patrimonio."""
     try:
@@ -156,6 +150,125 @@ def teto_margem(cotacao: float | None, low_52: float | None, high_52: float | No
         else:
             teto = low_52 + rng * (margem ** (1 - margem))
         return round(teto, 2)
+    except Exception:
+        return None
+
+
+def teto_carrego(
+    spot: float | None,
+    taxa_local: float | None,
+    taxa_externa: float | None,
+) -> float | None:
+    """
+    Paridade coberta de juros: nível de câmbio em que carregar BRL e USD empata.
+    spot: USD/BRL atual
+    taxa_local / taxa_externa: taxas em % (ex: CDI 13.65, Fed 3.98)
+    """
+    try:
+        if spot is None or taxa_local is None or taxa_externa is None:
+            return None
+        denominador = 1 + taxa_externa / 100
+        if denominador <= 0:
+            return None
+        return round(spot * (1 + taxa_local / 100) / denominador, 2)
+    except Exception:
+        return None
+
+
+def teto_por_regressao(
+    driver: pd.Series,
+    alvo: pd.Series,
+    driver_alvo: float,
+    log_driver: bool = True,
+    min_pontos: int = 30,
+) -> tuple[float | None, float | None]:
+    """
+    OLS de ln(alvo) contra o driver; devolve (nível do alvo em driver_alvo, R²).
+    alvo são datas de calendário (o alinhamento é interseção de índices).
+    log_driver=False usa o driver em nível — necessário para posicionamento, que
+    pode ser negativo (COT). O R² volta junto para a saída não sugerir precisão
+    que a relação não tem.
+    """
+    try:
+        if log_driver:
+            if driver_alvo is None or driver_alvo <= 0:
+                return None, None
+            x = np.log(driver.astype(float))
+            driver_nivel = float(np.log(driver_alvo))
+        else:
+            if driver_alvo is None:
+                return None, None
+            x = driver.astype(float)
+            driver_nivel = float(driver_alvo)
+        y = np.log(alvo.astype(float))
+        base = pd.concat([x.rename("driver"), y.rename("alvo")], axis=1).dropna()
+        if len(base) < min_pontos:
+            return None, None
+        coeficiente, intercepto = np.polyfit(base["driver"].to_numpy(), base["alvo"].to_numpy(), 1)
+        previsto = intercepto + coeficiente * base["driver"]
+        sst = ((base["alvo"] - base["alvo"].mean()) ** 2).sum()
+        if sst == 0:
+            return None, None
+        r2 = 1 - ((base["alvo"] - previsto) ** 2).sum() / sst
+        ln_alvo = intercepto + coeficiente * driver_nivel
+        return round(float(np.exp(ln_alvo)), 2), round(float(r2), 4)
+    except Exception:
+        return None, None
+
+
+def expectativa_por_posicionamento(
+    posicao: pd.Series,
+    alvo: pd.Series,
+    spot: float | None,
+    horizonte: int = 26,
+    min_pontos: int = 30,
+) -> tuple[float | None, float | None]:
+    """
+    OLS do retorno log futuro de `horizonte` semanas contra o posicionamento COT.
+    Devolve (nível esperado partindo do spot, R²).
+
+    É uma expectativa futura condicionada ao posicionamento — pergunta diferente
+    do teto DXY, que ancora no dólar global de hoje. Ancorar os dois num
+    percentil histórico do driver faz as duas linhas convergirem para a mediana
+    do câmbio, que era o defeito da primeira versão.
+    """
+    try:
+        if spot is None or horizonte < 1:
+            return None, None
+        base = pd.concat([posicao.rename("pos"), alvo.rename("alvo")], axis=1).dropna()
+        if len(base) <= horizonte + min_pontos:
+            return None, None
+        dados = pd.DataFrame({
+            "pos": base["pos"],
+            "fwd": np.log(base["alvo"].shift(-horizonte) / base["alvo"]),
+        }).dropna()
+        if len(dados) < min_pontos:
+            return None, None
+        coeficiente, intercepto = np.polyfit(dados["pos"].to_numpy(), dados["fwd"].to_numpy(), 1)
+        previsto = intercepto + coeficiente * dados["pos"]
+        sst = ((dados["fwd"] - dados["fwd"].mean()) ** 2).sum()
+        if sst == 0:
+            return None, None
+        r2 = 1 - ((dados["fwd"] - previsto) ** 2).sum() / sst
+        nivel = spot * float(np.exp(intercepto + coeficiente * float(base["pos"].iloc[-1])))
+        return round(nivel, 2), round(float(r2), 4)
+    except Exception:
+        return None, None
+
+
+def teto_por_fluxo(
+    k_hat: float | None,
+    ibov: float | None,
+    ewz: float | None,
+) -> float | None:
+    """
+    Câmbio implícito pelo fluxo de equity: k_hat × IBOV / EWZ.
+    k_hat é a calibração (mediana recente de EWZ × USD/BRL / IBOV).
+    """
+    try:
+        if k_hat is None or ibov is None or ewz is None or ewz == 0:
+            return None
+        return round(k_hat * ibov / ewz, 2)
     except Exception:
         return None
 

@@ -8,7 +8,7 @@ from rich.text import Text
 from rich import box
 
 from preco_teto.formulas import (
-    sinal_cobertura, sinal_p_fcf, sinal_peg, preco_potencial,
+    sinal_cobertura, sinal_p_fcf, sinal_peg, termometro_margem,
 )
 from preco_teto.output.alavancagem import linhas
 
@@ -28,24 +28,6 @@ def _teto_row(label: str, valor: float | None, cotacao: float | None) -> tuple:
         return label, f"[green]{fmt}[/green]", f"[green]{pct_str}[/green]", "[green]✓[/green]"
     return label, f"[red]{fmt}[/red]", f"[red]{pct_str}[/red]", "[red]✗[/red]"
 
-
-def _potencial_cell(valor: float | None, cotacao: float | None) -> str:
-    """Célula da coluna Preço Potencial: valor + o potencial da própria linha."""
-    if valor is None or not cotacao:
-        return "—"
-    pct = (valor - cotacao) / cotacao * 100
-    preco = preco_potencial(valor, pct)
-    if preco is None:
-        return "—"
-    fmt = f"R$ {preco:.2f}" if cotacao > 1 else f"$ {preco:.2f}"
-    if preco >= cotacao:
-        return f"[green]{fmt}[/green]"
-    return f"[red]{fmt}[/red]"
-
-
-def _linha_5_colunas(label: str, valor: float | None, cotacao: float | None) -> tuple:
-    rotulo, valor_cell, pct_cell, mark = _teto_row(label, valor, cotacao)
-    return rotulo, valor_cell, pct_cell, _potencial_cell(valor, cotacao), mark
 
 def _title(ticker, nome, moeda, cotacao):
     prefixo = f"{ticker} - {nome}" if nome else ticker
@@ -87,7 +69,6 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
     t.add_column("Potencial", justify="right")
-    t.add_column("Preço Potencial", justify="right")
     t.add_column("")
 
     labels = {
@@ -101,7 +82,7 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
         "teto_margem":    "Teto Margem     (52w high/low)",
     }
     for key, label in labels.items():
-        t.add_row(*_linha_5_colunas(label, tetos.get(key), cotacao))
+        t.add_row(*_teto_row(label, tetos.get(key), cotacao))
 
     console.print(t)
 
@@ -135,7 +116,6 @@ def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
     t.add_column("Potencial", justify="right")
-    t.add_column("Preço Potencial", justify="right")
     t.add_column("")
 
     for label, key in [
@@ -145,7 +125,7 @@ def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None
         ("VPA", "vpa"),
         ("Teto Margem  (52w high/low)", "teto_margem"),
     ]:
-        t.add_row(*_linha_5_colunas(label, tetos.get(key), cotacao))
+        t.add_row(*_teto_row(label, tetos.get(key), cotacao))
     console.print(t)
     footer = f"CDI: {indices.cdi}%   IPCA: {indices.ipca}%"
     if ultimo_dividendo is not None and mes_ano_dividendo is not None:
@@ -250,6 +230,85 @@ def _render_etf_multiplos(p_fcf_agregado, peg_agregado, cobertura_p_fcf, cobertu
             _color(mark, s_val),
         )
     console.print(m)
+
+
+def _linhas_usd(data, tetos, r2_dxy, r2_cot):
+    """Linhas da tabela de câmbio; o R² acompanha as linhas de relação fraca."""
+    linhas = [
+        ("Teto Margem  (52w PTAX)", "teto_margem", None),
+        ("Teto Carrego (CDI×Fed)", "teto_carrego", None),
+        ("Teto EWZ     (fluxo)", "teto_ewz", None),
+    ]
+    if data.dxy is not None:
+        linhas.append((
+            "Teto DXY     (hoje)",
+            "teto_dxy",
+            f"R² {r2_dxy:.2f}" if r2_dxy is not None else None,
+        ))
+    if data.cot is not None:
+        linhas.append((
+            "Teto COT     (26 sem)",
+            "teto_cot",
+            f"R² {r2_cot:.2f}" if r2_cot is not None else None,
+        ))
+    return linhas
+
+
+def render_usd(data, tetos: dict, indices, fed=None, r2_dxy=None, r2_cot=None):
+    console.print()
+    console.print()
+    t = Table(title=f"PTAX  USD/BRL  R$ {data.spot:.4f}", box=box.SIMPLE_HEAVY)
+    t.add_column("Teto", style="bold")
+    t.add_column("Valor", justify="right")
+    t.add_column("Potencial", justify="right")
+    t.add_column("")
+
+    for label, chave, nota in _linhas_usd(data, tetos, r2_dxy, r2_cot):
+        rotulo, valor_cell, pct_cell, mark = _teto_row(
+            label, tetos.get(chave), data.spot
+        )
+        if nota:
+            mark = f"{mark} [dim]{nota}[/dim]" if mark else f"[dim]{nota}[/dim]"
+        t.add_row(rotulo, valor_cell, pct_cell, mark)
+    console.print(t)
+
+    posicao = f"{data.margem_52 * 100:.0f}%" if data.margem_52 is not None else "—"
+    faixa = (
+        f"R$ {data.low_52:.4f}–{data.high_52:.4f}"
+        if data.low_52 is not None and data.high_52 is not None
+        else "—"
+    )
+    console.print(
+        f"Termômetro: {termometro_margem(data.margem_52)}   "
+        f"Posição 52w: {posicao}   Faixa: {faixa}"
+    )
+    fed_txt = f"{fed}%" if fed is not None else "—"
+    ptax_txt = (
+        f"{data.data_spot.day:02d}/{data.data_spot.month:02d}/{data.data_spot.year}"
+        if data.data_spot
+        else "—"
+    )
+    console.print(f"CDI: {indices.cdi}%   Fed: {fed_txt}   PTAX: {ptax_txt}")
+
+    if data.dxy is not None:
+        pctl = f"   (%il 3a: {data.dxy_pctl:.0f})" if data.dxy_pctl is not None else ""
+        console.print(f"DXY: {data.dxy:.2f}{pctl}")
+    if data.cot is not None:
+        cot_dt = f"{data.cot.data.day:02d}/{data.cot.data.month:02d}/{data.cot.data.year}"
+        console.print(
+            f"COT BRL {cot_dt}: asset_mgr {data.cot.am_net_pct:+.1f}% OI "
+            f"(%il {data.cot.am_pctl:.0f})   "
+            f"lev_net {data.cot.lev_net_pct:+.1f}% OI (%il {data.cot.lev_pctl:.0f})"
+        )
+    if data.ewz is not None and data.ibov is not None:
+        desvio = f"   Desvio fluxo: z={data.desvio_z:+.2f}" if data.desvio_z is not None else ""
+        console.print(f"EWZ: {data.ewz:.2f}   IBOV: {data.ibov:,.0f}{desvio}".replace(",", "."))
+    uup_px, uup_nav = data.uup
+    udn_px, udn_nav = data.udn
+    if uup_px is not None or udn_px is not None:
+        uup_txt = f"{uup_px:.2f} (NAV {uup_nav:.2f})" if uup_px and uup_nav else "—"
+        udn_txt = f"{udn_px:.2f} (NAV {udn_nav:.2f})" if udn_px and udn_nav else "—"
+        console.print(f"UUP: {uup_txt}   UDN: {udn_txt}")
 
 
 def render_indices(br):

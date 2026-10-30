@@ -1,28 +1,13 @@
 import json
 
-from preco_teto.formulas import preco_potencial
-
-
-def _precos_potenciais(tetos, cotacao):
-    """Por modalidade: teto + o potencial da própria linha."""
-    if not cotacao:
-        return {k: None for k in tetos}
-    return {
-        k: preco_potencial(v, (v - cotacao) / cotacao * 100)
-        if isinstance(v, (int, float)) else None
-        for k, v in tetos.items()
-    }
-
 
 def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
-    precos_pot = _precos_potenciais(tetos, cotacao)
     print(json.dumps({
         "ticker": ticker,
         "nome": nome,
         "cotacao": cotacao,
         "is_br": is_br,
         "tetos": tetos,
-        "preco_potencial": precos_pot,
         "dividend_yield": dividend_yield,
         "dy_medio": dy_medio,
         "roe": roe,
@@ -44,13 +29,11 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
 def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
                ultimo_dividendo=None, mes_ano_dividendo=None, dy_mensal=None,
                dividend_yield_12m=None):
-    precos_pot = _precos_potenciais(tetos, cotacao)
     print(json.dumps({
         "ticker": ticker,
         "nome": nome,
         "cotacao": cotacao,
         "tetos": tetos,
-        "preco_potencial": precos_pot,
         "ultimo_dividendo": ultimo_dividendo,
         "mes_ano_dividendo": mes_ano_dividendo,
         "dy_mensal": dy_mensal,
@@ -159,4 +142,49 @@ def render_backtest(report):
             }
             for r in (report.spearman or [])
         ],
+    }, indent=2, ensure_ascii=False))
+
+
+def render_usd(data, tetos, indices, fed=None, r2_dxy=None, r2_cot=None):
+    from preco_teto.formulas import termometro_margem
+
+    cot = data.cot
+    uup_px, uup_nav = data.uup
+    udn_px, udn_nav = data.udn
+    print(json.dumps({
+        "ticker": "USD",
+        "moeda": "BRL",
+        "spot": data.spot,
+        "data_spot": data.data_spot.isoformat() if data.data_spot else None,
+        "faixa_52w": {
+            "low": data.low_52,
+            "high": data.high_52,
+            "margem": data.margem_52,
+        },
+        "tetos": tetos,
+        "termometro": termometro_margem(data.margem_52),
+        "regressao": {"r2_dxy": r2_dxy, "r2_cot": r2_cot, "cot_horizonte_semanas": 26},
+        "dxy": {
+            "atual": data.dxy,
+            "percentil_3a": data.dxy_pctl,
+        },
+        "cot": {
+            "data": cot.data.isoformat() if cot else None,
+            "lev_net_pct": cot.lev_net_pct if cot else None,
+            "lev_pctl": cot.lev_pctl if cot else None,
+            "am_net_pct": cot.am_net_pct if cot else None,
+            "am_pctl": cot.am_pctl if cot else None,
+        } if cot else None,
+        "fluxo": {
+            "ewz": data.ewz,
+            "ibov": data.ibov,
+            "k_hat": data.k_hat,
+            "desvio_z": data.desvio_z,
+        },
+        "uup": {"preco": uup_px, "nav": uup_nav},
+        "udn": {"preco": udn_px, "nav": udn_nav},
+        "indices": {
+            "cdi": getattr(indices, "cdi", None),
+            "fed": fed,
+        },
     }, indent=2, ensure_ascii=False))

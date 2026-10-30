@@ -348,3 +348,49 @@ def test_ultimo_dividendo_none_quando_sem_dados(mock_get, mocker):
     assert data.ultimo_dividendo is None
     assert data.mes_ano_dividendo is None
     assert data.dy_mensal is None
+
+
+@patch("requests.get")
+def test_fetch_fii_usa_cotacao_do_yfinance_quando_fiis_com_responde_404(mock_get, mocker):
+    """Fundo novo (ex: PMLL11) dá 404 no fiis.com.br mas existe no yfinance."""
+    mock_get.return_value.ok = False
+    mock_get.return_value.status_code = 404
+    mock_get.return_value.text = "<html><body><h1>Página não encontrada</h1></body></html>"
+    mock_get.return_value.encoding = "utf-8"
+
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = {
+        "currentPrice": 99.53,
+        "fiftyTwoWeekLow": 97.0,
+        "fiftyTwoWeekHigh": 112.56,
+    }
+    mock_ticker.history.return_value = pd.DataFrame({"Close": [99.53]})
+    mock_ticker.dividends = pd.Series(dtype=float)
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.fii import fetch_fii
+    data = fetch_fii("PMLL11")
+
+    assert data.cotacao == pytest.approx(99.53)
+    assert data.low_52 == pytest.approx(97.0)
+    assert data.high_52 == pytest.approx(112.56)
+
+
+@patch("requests.get")
+def test_fetch_fii_nao_usa_nome_da_pagina_de_erro(mock_get, mocker):
+    mock_get.return_value.ok = False
+    mock_get.return_value.status_code = 404
+    mock_get.return_value.text = "<html><body><h1>Página não encontrada</h1></body></html>"
+    mock_get.return_value.encoding = "utf-8"
+
+    mock_ticker = mocker.MagicMock()
+    mock_ticker.info = {"previousClose": 99.53}
+    mock_ticker.history.return_value = pd.DataFrame({"Close": [99.53]})
+    mock_ticker.dividends = pd.Series(dtype=float)
+    mocker.patch("yfinance.Ticker", return_value=mock_ticker)
+
+    from preco_teto.services.fii import fetch_fii
+    data = fetch_fii("PMLL11")
+
+    assert data.nome is None
+    assert data.cotacao == pytest.approx(99.53)
