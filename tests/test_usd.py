@@ -145,6 +145,14 @@ def test_fetch_cot_real_com_erro_http_retorna_none(monkeypatch):
     assert usd.fetch_cot_real() is None
 
 
+def _fake_quote(ticker):
+    return {
+        "BRL=X": (5.4645, None),
+        "UUP": (29.04, 29.04),
+        "UDN": (17.82, 17.81),
+    }.get(ticker, (None, None))
+
+
 def test_fetch_usd_monta_spot_faixa_e_desvio(monkeypatch, ptax_serie, dxy_serie, ewz_serie, ibov_serie):
     from preco_teto.services import usd
 
@@ -160,12 +168,14 @@ def test_fetch_usd_monta_spot_faixa_e_desvio(monkeypatch, ptax_serie, dxy_serie,
     ))
     historicos = {"DX-Y.NYB": dxy_serie, "EWZ": ewz_serie, "^BVSP": ibov_serie}
     monkeypatch.setattr(usd, "_fetch_history", lambda ticker, periodo="5y": historicos[ticker])
-    monkeypatch.setattr(usd, "_quote", lambda ticker: (29.04, 29.04) if ticker == "UUP" else (17.82, 17.81))
+    monkeypatch.setattr(usd, "_quote", _fake_quote)
 
     data = usd.fetch_usd()
 
     assert data.spot == pytest.approx(float(ptax_serie.iloc[-1]))
     assert data.data_spot == ptax_serie.index[-1].date()
+    assert data.spot_comercial == pytest.approx(5.4645)
+    assert data.spot_ref == pytest.approx(5.4645)
     assert data.low_52 == pytest.approx(float(ptax_serie.tail(252).min()))
     assert data.high_52 == pytest.approx(float(ptax_serie.tail(252).max()))
     assert 0.0 <= data.margem_52 <= 1.0
@@ -176,6 +186,21 @@ def test_fetch_usd_monta_spot_faixa_e_desvio(monkeypatch, ptax_serie, dxy_serie,
     assert data.desvio_z is not None
     assert data.uup == (29.04, 29.04)
     assert data.udn == (17.82, 17.81)
+
+
+def test_fetch_usd_sem_comercial_usa_ptax_como_ref(monkeypatch, ptax_serie, dxy_serie, ewz_serie, ibov_serie):
+    from preco_teto.services import usd
+
+    monkeypatch.setattr(usd, "fetch_ptax", lambda anos=3: ptax_serie)
+    monkeypatch.setattr(usd, "fetch_cot_real", lambda: None)
+    historicos = {"DX-Y.NYB": dxy_serie, "EWZ": ewz_serie, "^BVSP": ibov_serie}
+    monkeypatch.setattr(usd, "_fetch_history", lambda ticker, periodo="5y": historicos[ticker])
+    monkeypatch.setattr(usd, "_quote", lambda ticker: (None, None))
+
+    data = usd.fetch_usd()
+
+    assert data.spot_comercial is None
+    assert data.spot_ref == pytest.approx(float(ptax_serie.iloc[-1]))
 
 
 def test_fetch_usd_sem_ptax_retorna_spot_none(monkeypatch, dxy_serie, ewz_serie, ibov_serie):
@@ -190,6 +215,8 @@ def test_fetch_usd_sem_ptax_retorna_spot_none(monkeypatch, dxy_serie, ewz_serie,
     data = usd.fetch_usd()
 
     assert data.spot is None
+    assert data.spot_comercial is None
+    assert data.spot_ref is None
     assert data.cot is None
     assert data.k_hat is None
 
@@ -201,11 +228,12 @@ def test_fetch_usd_sem_cot_nao_quebra(monkeypatch, ptax_serie, dxy_serie, ewz_se
     monkeypatch.setattr(usd, "fetch_cot_real", lambda: None)
     historicos = {"DX-Y.NYB": dxy_serie, "EWZ": ewz_serie, "^BVSP": ibov_serie}
     monkeypatch.setattr(usd, "_fetch_history", lambda ticker, periodo="5y": historicos[ticker])
-    monkeypatch.setattr(usd, "_quote", lambda ticker: (None, None))
+    monkeypatch.setattr(usd, "_quote", _fake_quote)
 
     data = usd.fetch_usd()
 
     assert data.spot is not None
+    assert data.spot_comercial == pytest.approx(5.4645)
     assert data.cot is None
     assert data.dxy is not None
 
@@ -216,11 +244,12 @@ def test_fetch_usd_historico_vazio_nao_quebra(monkeypatch, ptax_serie):
     monkeypatch.setattr(usd, "fetch_ptax", lambda anos=3: ptax_serie)
     monkeypatch.setattr(usd, "fetch_cot_real", lambda: None)
     monkeypatch.setattr(usd, "_fetch_history", lambda ticker, periodo="5y": pd.Series(dtype=float))
-    monkeypatch.setattr(usd, "_quote", lambda ticker: (None, None))
+    monkeypatch.setattr(usd, "_quote", _fake_quote)
 
     data = usd.fetch_usd()
 
     assert data.spot is not None
+    assert data.spot_comercial == pytest.approx(5.4645)
     assert data.dxy is None
     assert data.k_hat is None
     assert data.desvio_z is None

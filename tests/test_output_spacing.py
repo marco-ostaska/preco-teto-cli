@@ -146,6 +146,8 @@ def _usd_data():
     return SimpleNamespace(
         spot=5.3744,
         data_spot=date(2026, 10, 29),
+        spot_comercial=5.3500,
+        spot_ref=5.3500,
         low_52=4.8973,
         high_52=5.5739,
         margem_52=0.71,
@@ -183,6 +185,10 @@ def test_tabela_render_usd_mostra_linhas_r2_e_rodape(monkeypatch):
 
     texto = buf.getvalue()
     assert "USD/BRL" in texto
+    assert "Spot comercial" in texto
+    assert "R$ 5.3500" in texto
+    assert "PTAX" in texto
+    assert "R$ 5.3744" in texto
     assert "Preço Potencial" not in texto
     assert "R$ 5.87" in texto
     # R² das linhas fracas fica visível para não sugerir precisão
@@ -212,6 +218,9 @@ def test_plain_render_usd_sem_coluna_preco_potencial(capsys):
 
     out = capsys.readouterr().out
     assert out.startswith("\n\n")
+    assert "Spot comercial" in out
+    assert "R$ 5.3500" in out
+    assert "PTAX" in out
     assert "Preço Potencial" not in out
     linha = next(l for l in out.splitlines() if l.startswith("Teto Carrego"))
     assert "R$ 5.87" in linha
@@ -228,6 +237,7 @@ def test_json_render_usd_exibe_tetos_e_indicadores(capsys):
     payload = _json.loads(capsys.readouterr().out)
     assert payload["moeda"] == "BRL"
     assert payload["spot"] == pytest.approx(5.3744)
+    assert payload["spot_comercial"] == pytest.approx(5.3500)
     assert payload["tetos"]["teto_carrego"] == pytest.approx(5.87)
     assert payload["regressao"]["r2_dxy"] == pytest.approx(0.06)
     assert payload["cot"]["lev_pctl"] == pytest.approx(81.0)

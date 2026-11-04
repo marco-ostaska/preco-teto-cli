@@ -246,12 +246,17 @@ def render_usd(data, tetos, indices, fed=None, r2_dxy=None, r2_cot=None):
 
     print()
     print()
-    print(f"PTAX  USD/BRL  R$ {data.spot:.4f}")
-    if data.data_spot:
-        print(
-            f"Dólar comercial (BCB PTAX)  "
-            f"{data.data_spot.day:02d}/{data.data_spot.month:02d}/{data.data_spot.year}"
+    if data.spot_comercial is not None:
+        print(f"Spot comercial  USD/BRL  R$ {data.spot_comercial:.4f}")
+    else:
+        print(f"PTAX  USD/BRL  R$ {data.spot:.4f}")
+    if data.spot is not None:
+        ptax_dt = (
+            f"  {data.data_spot.day:02d}/{data.data_spot.month:02d}/{data.data_spot.year}"
+            if data.data_spot
+            else ""
         )
+        print(f"PTAX (BCB){ptax_dt}  R$ {data.spot:.4f}")
     print("-" * 75)
     print(_cabecalho_colunas())
 
@@ -273,7 +278,7 @@ def render_usd(data, tetos, indices, fed=None, r2_dxy=None, r2_cot=None):
             f"R² {r2_cot:.2f}" if r2_cot is not None else None,
         ))
     for label, chave, nota in linhas:
-        linha = _linha_teto(label, tetos.get(chave), data.spot, True)
+        linha = _linha_teto(label, tetos.get(chave), data.spot_ref, True)
         print(f"{linha} {nota}" if nota else linha)
 
     print("-" * 75)

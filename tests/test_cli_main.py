@@ -384,6 +384,8 @@ def test_cli_usd_chama_render_usd(mocker):
     data = SimpleNamespace(
         spot=5.3744,
         data_spot=None,
+        spot_comercial=5.3500,
+        spot_ref=5.3500,
         ptax=ptax,
         dxy_hist=dxy,
         low_52=4.8973,
@@ -412,7 +414,8 @@ def test_cli_usd_chama_render_usd(mocker):
 
     assert result.exit_code == 0
     tetos = renderer.render_usd.call_args.args[1]
-    assert tetos["teto_carrego"] == pytest.approx(5.87, abs=0.02)
+    # carrego ancora no spot comercial (mais fresco), não na PTAX
+    assert tetos["teto_carrego"] == pytest.approx(5.35 * 1.1365 / 1.0398, abs=0.02)
     assert tetos["teto_margem"] is not None
     assert tetos["teto_ewz"] is not None
     # DXY entra pela regressão log ancorada no DXY de hoje, com o R² junto
@@ -447,6 +450,8 @@ def test_cli_usd_funciona_sem_ticker(mocker):
     data = SimpleNamespace(
         spot=5.3744,
         data_spot=None,
+        spot_comercial=5.3500,
+        spot_ref=5.3500,
         ptax=pd.Series(dtype=float),
         dxy_hist=pd.Series(dtype=float),
         low_52=4.8973,
@@ -496,9 +501,12 @@ def test_cli_usd_cot_alimenta_teto_pelo_posicionamento_em_26_semanas(mocker):
     cot_datas = datas[::5]
     posicao = pd.Series(np.linspace(-20.0, 20.0, len(cot_datas)), index=cot_datas)
     ptax = pd.Series(np.linspace(6.2, 5.2, len(cot_datas)), index=cot_datas)
+    spot = float(ptax.iloc[-1])
     data = SimpleNamespace(
-        spot=float(ptax.iloc[-1]),
+        spot=spot,
         data_spot=None,
+        spot_comercial=spot - 0.05,
+        spot_ref=spot - 0.05,
         ptax=ptax,
         dxy_hist=pd.Series(dtype=float),
         low_52=float(ptax.tail(52).min()),
@@ -527,7 +535,7 @@ def test_cli_usd_cot_alimenta_teto_pelo_posicionamento_em_26_semanas(mocker):
 
     assert result.exit_code == 0
     tetos = renderer.render_usd.call_args.args[1]
-    # posição subindo com câmbio caindo => expectativa abaixo do spot
+    # posição subindo com câmbio caindo => expectativa abaixo do spot comercial
     assert tetos["teto_cot"] is not None
-    assert tetos["teto_cot"] < data.spot
+    assert tetos["teto_cot"] < data.spot_ref
     assert renderer.render_usd.call_args.kwargs["r2_cot"] is not None

@@ -116,12 +116,13 @@ def _render_usd(renderer) -> None:
     teto_cot = r2_cot = None
     if data.cot is not None and not data.ptax.empty:
         teto_cot, r2_cot = expectativa_por_posicionamento(
-            data.cot.serie_am_net, data.ptax, data.spot
+            data.cot.serie_am_net, data.ptax, data.spot_ref
         )
 
     tetos = {
+        # margem 52w na PTAX (faixa oficial); carrego/COT no spot_ref (comercial||PTAX)
         "teto_margem": teto_margem(data.spot, data.low_52, data.high_52),
-        "teto_carrego": teto_carrego(data.spot, idx.cdi, fed),
+        "teto_carrego": teto_carrego(data.spot_ref, idx.cdi, fed),
         "teto_ewz": teto_por_fluxo(data.k_hat, data.ibov, data.ewz),
         "teto_dxy": teto_dxy,
         "teto_cot": teto_cot,

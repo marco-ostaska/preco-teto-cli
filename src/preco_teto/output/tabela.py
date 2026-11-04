@@ -257,7 +257,12 @@ def _linhas_usd(data, tetos, r2_dxy, r2_cot):
 def render_usd(data, tetos: dict, indices, fed=None, r2_dxy=None, r2_cot=None):
     console.print()
     console.print()
-    t = Table(title=f"PTAX  USD/BRL  R$ {data.spot:.4f}", box=box.SIMPLE_HEAVY)
+    titulo = (
+        f"Spot comercial  USD/BRL  R$ {data.spot_comercial:.4f}"
+        if data.spot_comercial is not None
+        else f"PTAX  USD/BRL  R$ {data.spot:.4f}"
+    )
+    t = Table(title=titulo, box=box.SIMPLE_HEAVY)
     t.add_column("Teto", style="bold")
     t.add_column("Valor", justify="right")
     t.add_column("Potencial", justify="right")
@@ -265,7 +270,7 @@ def render_usd(data, tetos: dict, indices, fed=None, r2_dxy=None, r2_cot=None):
 
     for label, chave, nota in _linhas_usd(data, tetos, r2_dxy, r2_cot):
         rotulo, valor_cell, pct_cell, mark = _teto_row(
-            label, tetos.get(chave), data.spot
+            label, tetos.get(chave), data.spot_ref
         )
         if nota:
             mark = f"{mark} [dim]{nota}[/dim]" if mark else f"[dim]{nota}[/dim]"
@@ -283,11 +288,15 @@ def render_usd(data, tetos: dict, indices, fed=None, r2_dxy=None, r2_cot=None):
         f"Posição 52w: {posicao}   Faixa: {faixa}"
     )
     fed_txt = f"{fed}%" if fed is not None else "—"
-    ptax_txt = (
-        f"{data.data_spot.day:02d}/{data.data_spot.month:02d}/{data.data_spot.year}"
-        if data.data_spot
-        else "—"
-    )
+    if data.spot is not None:
+        ptax_dt = (
+            f"{data.data_spot.day:02d}/{data.data_spot.month:02d}/{data.data_spot.year}"
+            if data.data_spot
+            else "—"
+        )
+        ptax_txt = f"R$ {data.spot:.4f} ({ptax_dt})"
+    else:
+        ptax_txt = "—"
     console.print(f"CDI: {indices.cdi}%   Fed: {fed_txt}   PTAX: {ptax_txt}")
 
     if data.dxy is not None:

@@ -156,6 +156,8 @@ def render_usd(data, tetos, indices, fed=None, r2_dxy=None, r2_cot=None):
         "moeda": "BRL",
         "spot": data.spot,
         "data_spot": data.data_spot.isoformat() if data.data_spot else None,
+        "spot_comercial": data.spot_comercial,
+        "spot_ref": data.spot_ref,
         "faixa_52w": {
             "low": data.low_52,
             "high": data.high_52,

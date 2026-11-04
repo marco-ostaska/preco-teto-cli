@@ -34,8 +34,9 @@ class CotData:
 
 @dataclass
 class UsdData:
-    spot: float | None
+    spot: float | None          # PTAX (BCB) — oficial, pode atrasar 1 dia útil
     data_spot: date | None
+    spot_comercial: float | None  # BRL=X — intradía / mais fresco
     ptax: pd.Series
     low_52: float | None
     high_52: float | None
@@ -50,6 +51,11 @@ class UsdData:
     desvio_z: float | None
     uup: tuple[float | None, float | None]
     udn: tuple[float | None, float | None]
+
+    @property
+    def spot_ref(self) -> float | None:
+        """Âncora potencial/carrego/COT: comercial se houver, senão PTAX."""
+        return self.spot_comercial if self.spot_comercial is not None else self.spot
 
 
 def _anos_ptax(anos: int) -> list[int]:
@@ -194,12 +200,13 @@ def _fluxo_equity(
 
 
 def fetch_usd(anos: int = 3) -> UsdData:
-    """Painel USD/BRL: PTAX, DXY, COT do Real, fluxo via EWZ e UUP/UDN."""
+    """Painel USD/BRL: PTAX, spot comercial, DXY, COT do Real, fluxo via EWZ e UUP/UDN."""
     ptax = fetch_ptax(anos)
     dxy_hist = _fetch_history(_DXY)
     ewz_hist = _fetch_history(_EWZ)
     ibov_hist = _fetch_history(_IBOV)
     cot = fetch_cot_real()
+    spot_comercial, _ = _quote("BRL=X")
     uup = _quote("UUP")
     udn = _quote("UDN")
 
@@ -223,6 +230,7 @@ def fetch_usd(anos: int = 3) -> UsdData:
     return UsdData(
         spot=spot,
         data_spot=data_spot,
+        spot_comercial=float(spot_comercial) if spot_comercial is not None else None,
         ptax=ptax,
         low_52=low_52,
         high_52=high_52,
