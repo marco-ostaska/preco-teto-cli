@@ -75,8 +75,13 @@ def test_buscar_fundo_prefere_registro_ativo_no_cadastro_legado(tmp_path, monkey
         "preco_teto.fundos.services.cadastro._cache_path",
         lambda: csv_file,
     )
-
-    info = buscar_fundo("03.618.256/0001-55")
+    empty_df = pd.DataFrame(columns=["CNPJ_Classe", "Situacao", "ID_Registro_Fundo"])
+    empty_fundo_df = pd.DataFrame(columns=["ID_Registro_Fundo"])
+    with patch(
+        "preco_teto.fundos.services.cadastro._load_registro_frames",
+        return_value=(empty_df, empty_fundo_df),
+    ):
+        info = buscar_fundo("03.618.256/0001-55")
 
     assert info.nome == "FUNDO NOVO"
     assert info.classe_anbima == "Multimercado Livre"

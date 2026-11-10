@@ -19,6 +19,9 @@ uv run preco-teto AAPL
 uv run preco-teto HGLG11
 uv run preco-teto indices
 
+# Cambio USD/BRL (PTAX, DXY, COT do Real e fluxo via EWZ)
+uv run preco-teto --usd
+
 # Saida alternativa
 uv run preco-teto VALE3 --json
 uv run preco-teto VALE3 --plain

@@ -1,17 +1,22 @@
 from typing import Annotated
+import sys
 import typer
 
 from preco_teto.services.acao import fetch_acao
+from preco_teto.services.crypto import CryptoFetchError, fetch_crypto, montar_tetos_crypto
 from preco_teto.services.etf import fetch_etf
 from preco_teto.services.etf_br import EtfBrFetchError, fetch_etf_br
 from preco_teto.services.fii import fetch_fii
 from preco_teto.services.referencia import fetch_indices_br, fetch_indices_us
+from preco_teto.services.usd import fetch_usd
 from preco_teto.formulas import (
     teto_por_lucro, teto_por_dy, teto_bazin, teto_graham, teto_dcf,
-    teto_margem, termometro_margem, p_fcf, media_ponderada_renorm
+    teto_margem, teto_vpa_roe, termometro_margem, p_fcf, media_ponderada_renorm,
+    teto_carrego, teto_por_regressao, teto_por_fluxo, expectativa_por_posicionamento,
 )
 
-app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
+quote_app = typer.Typer(help="Preço teto de ativos — ações BR/US e FIIs", no_args_is_help=True)
+app = quote_app  # CliRunner / imports: preserve preco-teto VALE3 tests
 
 
 def _get_renderer(json_flag: bool, plain_flag: bool):
@@ -96,13 +101,69 @@ def _render_etfbr(ticker: str, renderer) -> None:
     renderer.render_etfbr(data, tetos, idx, termometro=termometro)
 
 
+def _render_usd(renderer) -> None:
+    data = fetch_usd()
+    if data.spot is None:
+        typer.echo("USD — não foi possível obter a PTAX do Banco Central.")
+        return
+    idx = fetch_indices_br()
+    fed = fetch_indices_us().fed_funds
+
+    # DXY ancorado no dólar global de hoje: mede o gap de valor, não uma reversão
+    teto_dxy = r2_dxy = None
+    if not data.ptax.empty and not data.dxy_hist.empty and data.dxy is not None:
+        teto_dxy, r2_dxy = teto_por_regressao(data.dxy_hist, data.ptax, data.dxy)
+    # COT como expectativa futura pelo posicionamento de asset managers (R² maior)
+    teto_cot = r2_cot = None
+    if data.cot is not None and not data.ptax.empty:
+        teto_cot, r2_cot = expectativa_por_posicionamento(
+            data.cot.serie_am_net, data.ptax, data.spot_ref
+        )
+
+    tetos = {
+        # margem 52w na PTAX (faixa oficial); carrego/COT no spot_ref (comercial||PTAX)
+        "teto_margem": teto_margem(data.spot, data.low_52, data.high_52),
+        "teto_carrego": teto_carrego(data.spot_ref, idx.cdi, fed),
+        "teto_ewz": teto_por_fluxo(data.k_hat, data.ibov, data.ewz),
+        "teto_dxy": teto_dxy,
+        "teto_cot": teto_cot,
+    }
+    renderer.render_usd(data, tetos, idx, fed=fed, r2_dxy=r2_dxy, r2_cot=r2_cot)
+
+
+def _render_crypto(ticker: str, renderer) -> None:
+    try:
+        data = fetch_crypto(ticker)
+    except CryptoFetchError as exc:
+        typer.echo(str(exc))
+        return
+    if data.cotacao is None:
+        typer.echo(f"{ticker} — não foi possível obter cotação crypto.")
+        return
+    tetos, r2s = montar_tetos_crypto(data)
+    if _todos_none(tetos):
+        typer.echo(f"{ticker} — cálculo de preço teto não disponível para este ativo.")
+        return
+    renderer.render_crypto(
+        data,
+        tetos,
+        termometro=termometro_margem(data.margem_52),
+        **r2s,
+    )
+
+
 def _render_fii(ticker: str, renderer) -> bool:
     data = fetch_fii(ticker)
+    if not data.cotacao:
+        typer.echo(f"{ticker} — cotação indisponível para este FII.")
+        return True
     idx = fetch_indices_br()
     indice_base = idx.melhor_indice
     div_anual = (data.cotacao * data.dividend_yield / 100) if data.dividend_yield and data.cotacao else None
+    div_12m = (data.cotacao * data.dividend_yield_12m / 100) if getattr(data, "dividend_yield_12m", None) and data.cotacao else None
     tetos = {
         "teto_por_dy": teto_por_dy(div_anual, indice_base) if data.cotacao else None,
+        "teto_por_dy_cdi_12m": teto_por_dy(div_12m, idx.cdi),
         "teto_bazin": teto_bazin(data.dividendo_estimado, indice_base),
         "vpa": data.vpa,
         "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
@@ -122,30 +183,50 @@ def _render_fii(ticker: str, renderer) -> bool:
         ultimo_dividendo=data.ultimo_dividendo,
         mes_ano_dividendo=data.mes_ano_dividendo,
         dy_mensal=data.dy_mensal,
+        dividend_yield_12m=getattr(data, "dividend_yield_12m", None),
     )
     return True
 
 
-@app.command()
+@quote_app.command()
 def main(
-    ticker: str,
+    ticker: Annotated[str | None, typer.Argument()] = None,
     json: Annotated[bool, typer.Option("--json")] = False,
     plain: Annotated[bool, typer.Option("--plain")] = False,
     etf: Annotated[bool, typer.Option("--etf")] = False,
     fii: Annotated[bool, typer.Option("--fii")] = False,
     etfbr: Annotated[bool, typer.Option("--etfbr")] = False,
+    usd: Annotated[bool, typer.Option("--usd")] = False,
+    crypto: Annotated[bool, typer.Option("--crypto")] = False,
 ):
-    """Consulta preço teto de um ativo (ação BR/US ou FII). Use 'indices' para ver CDI e IPCA."""
+    """Consulta preço teto de um ativo (ação BR/US ou FII).
+
+    Use 'indices' para ver CDI e IPCA e '--usd' para o painel USD/BRL.
+    Use '--crypto' para spot crypto (ex.: BTC --crypto).
+    """
+    renderer = _get_renderer(json, plain)
+
+    if sum([etf, fii, etfbr, usd, crypto]) > 1:
+        raise typer.BadParameter(
+            "Use apenas uma flag entre --etf, --fii, --etfbr, --usd e --crypto."
+        )
+
+    if usd:
+        _render_usd(renderer)
+        return
+
+    if ticker is None:
+        raise typer.BadParameter("Informe um ticker ou use --usd.")
+
     ticker = ticker.upper()
 
     if ticker == "INDICES":
         _indices(json=json, plain=plain)
         return
 
-    renderer = _get_renderer(json, plain)
-
-    if sum([etf, fii, etfbr]) > 1:
-        raise typer.BadParameter("Use apenas uma flag entre --etf, --fii e --etfbr.")
+    if crypto:
+        _render_crypto(ticker, renderer)
+        return
 
     if etfbr:
         _render_etfbr(ticker, renderer)
@@ -187,6 +268,8 @@ def main(
         "teto_por_dy": teto_por_dy(data.dividendo_medio, indice_base) if data.dividendo_medio else None,
         "teto_bazin": teto_bazin(data.dividend_rate, indice_base),
         "teto_graham": teto_graham(data.lpa, data.vpa),
+        "teto_vpa_roe_taxa": teto_vpa_roe(data.vpa, data.roe_ajustado, taxa_livre),
+        "teto_vpa_roe_inflacao": teto_vpa_roe(data.vpa, data.roe_ajustado, inflacao),
         "teto_dcf": teto_dcf(
             data.free_cashflow, data.shares_outstanding, data.beta,
             data.earnings_growth, taxa_livre or 0, premio, inflacao
@@ -209,6 +292,19 @@ def main(
         termometro=termometro, nome=data.nome,
         dividend_yield=data.dividend_yield,
         dy_medio=data.dy_medio,
+        roe=data.roe,
+        roe_medio_5a=data.roe_medio_5a,
+        roe_tendencia=data.roe_tendencia,
+        roe_r2=data.roe_r2,
+        roe_ajustado=data.roe_ajustado,
+        alavancagem={
+            "divida_total": getattr(data, "divida_total", None),
+            "caixa": getattr(data, "caixa", None),
+            "divida_liquida": getattr(data, "divida_liquida", None),
+            "divida_sobre_patrimonio": getattr(data, "divida_sobre_patrimonio", None),
+            "divida_liquida_sobre_ebitda": getattr(data, "divida_liquida_sobre_ebitda", None),
+            "status": getattr(data, "alavancagem_status", "Indisponível"),
+        },
         ultimo_dividendo=data.ultimo_dividendo,
         mes_ano_dividendo=data.mes_ano_dividendo,
     )
@@ -222,3 +318,13 @@ def _indices(
     br = fetch_indices_br()
     renderer = _get_renderer(json, plain)
     renderer.render_indices(br)
+
+
+def entry() -> None:
+    """Console entry: `preco-teto TICKER` | `preco-teto backtest TICKER`."""
+    if len(sys.argv) > 1 and sys.argv[1].lower() == "backtest":
+        from preco_teto.backtest.cli import app as backtest_app
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        backtest_app()
+        return
+    quote_app()
