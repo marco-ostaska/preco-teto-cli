@@ -241,6 +241,62 @@ def render_backtest(report):
         print(f"Nota: {note}")
 
 
+def render_crypto(data, tetos, termometro=None, r2_btc=None, r2_ouro=None, r2_dxy=None):
+    from preco_teto.formulas import termometro_margem
+
+    symbol = (data.symbol or data.id or "?").upper()
+    print()
+    print()
+    if getattr(data, "name", None) and data.cotacao is not None:
+        print(f"{symbol} - {data.name}  $ {data.cotacao:.2f}")
+    elif data.cotacao is not None:
+        print(f"{symbol}  $ {data.cotacao:.2f}")
+    else:
+        print(symbol)
+    print("-" * 75)
+    print(_cabecalho_colunas())
+
+    linhas = [("Teto Margem (52w)", "teto_margem", None)]
+    if data.id != "bitcoin" and tetos.get("teto_vs_btc") is not None:
+        linhas.append(("Teto vs BTC", "teto_vs_btc", r2_btc))
+    if tetos.get("teto_vs_ouro") is not None:
+        linhas.append(("Teto vs Ouro", "teto_vs_ouro", r2_ouro))
+    if tetos.get("teto_vs_dxy") is not None:
+        linhas.append(("Teto vs DXY", "teto_vs_dxy", r2_dxy))
+    for label, chave, r2 in linhas:
+        linha = _linha_teto(label, tetos.get(chave), data.cotacao, False)
+        if r2 is not None:
+            print(f"{linha} R² {r2:.2f}")
+        else:
+            print(linha)
+    print("-" * 75)
+    termo = termometro if termometro is not None else termometro_margem(data.margem_52)
+    posicao = f"{data.margem_52 * 100:.0f}%" if data.margem_52 is not None else "—"
+    faixa = (
+        f"$ {data.low_52:.2f}-{data.high_52:.2f}"
+        if data.low_52 is not None and data.high_52 is not None
+        else "—"
+    )
+    print(f"Termômetro: {termo}   Posição 52w: {posicao}   Faixa: {faixa}")
+    ath_txt = f"$ {data.ath:.2f}" if data.ath is not None else "—"
+    ath_dd = f" ({data.ath_change_pct:+.1f}%)" if data.ath_change_pct is not None else ""
+    print(f"ATH: {ath_txt}{ath_dd}")
+    mcap_txt = f"{data.mcap:,.0f}".replace(",", ".") if data.mcap is not None else "—"
+    rank_txt = str(data.rank) if data.rank is not None else "—"
+    print(f"Mcap: $ {mcap_txt}   Rank: {rank_txt}")
+    circ = f"{data.circ_supply:,.0f}".replace(",", ".") if data.circ_supply is not None else "—"
+    max_s = f"{data.max_supply:,.0f}".replace(",", ".") if data.max_supply is not None else "—"
+    print(f"Supply circ/max: {circ} / {max_s}")
+    vol = f"{data.volume_24h:,.0f}".replace(",", ".") if data.volume_24h is not None else "—"
+    d30 = f"{data.change_30d:+.1f}%" if data.change_30d is not None else "—"
+    d1y = f"{data.change_1y:+.1f}%" if data.change_1y is not None else "—"
+    print(f"Vol 24h: $ {vol}   Δ30d: {d30}   Δ1y: {d1y}")
+    if data.btc_dominance_pct is not None:
+        print(f"BTC dominance: {data.btc_dominance_pct:.1f}%")
+    if getattr(data, "source", None):
+        print(data.source)
+
+
 def render_usd(data, tetos, indices, fed=None, r2_dxy=None, r2_cot=None):
     from preco_teto.formulas import termometro_margem
 

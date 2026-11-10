@@ -145,6 +145,44 @@ def render_backtest(report):
     }, indent=2, ensure_ascii=False))
 
 
+def render_crypto(data, tetos, termometro=None, r2_btc=None, r2_ouro=None, r2_dxy=None):
+    from preco_teto.formulas import termometro_margem
+
+    termo = termometro if termometro is not None else termometro_margem(data.margem_52)
+    print(json.dumps({
+        "ticker": (data.symbol or data.id or "").upper(),
+        "id": data.id,
+        "nome": getattr(data, "name", None),
+        "moeda": "USD",
+        "cotacao": data.cotacao,
+        "faixa_52w": {
+            "low": data.low_52,
+            "high": data.high_52,
+            "margem": data.margem_52,
+        },
+        "ath": data.ath,
+        "ath_change_pct": data.ath_change_pct,
+        "tetos": tetos,
+        "regressao": {
+            "r2_btc": r2_btc,
+            "r2_ouro": r2_ouro,
+            "r2_dxy": r2_dxy,
+        },
+        "mercado": {
+            "mcap": data.mcap,
+            "rank": data.rank,
+            "circ_supply": data.circ_supply,
+            "max_supply": data.max_supply,
+            "volume_24h": data.volume_24h,
+            "change_30d": data.change_30d,
+            "change_1y": data.change_1y,
+            "btc_dominance_pct": data.btc_dominance_pct,
+        },
+        "termometro": termo,
+        "fonte": getattr(data, "source", None),
+    }, indent=2, ensure_ascii=False))
+
+
 def render_usd(data, tetos, indices, fed=None, r2_dxy=None, r2_cot=None):
     from preco_teto.formulas import termometro_margem
 

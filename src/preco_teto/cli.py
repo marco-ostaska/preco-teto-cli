@@ -3,6 +3,7 @@ import sys
 import typer
 
 from preco_teto.services.acao import fetch_acao
+from preco_teto.services.crypto import CryptoFetchError, fetch_crypto, montar_tetos_crypto
 from preco_teto.services.etf import fetch_etf
 from preco_teto.services.etf_br import EtfBrFetchError, fetch_etf_br
 from preco_teto.services.fii import fetch_fii
@@ -130,6 +131,27 @@ def _render_usd(renderer) -> None:
     renderer.render_usd(data, tetos, idx, fed=fed, r2_dxy=r2_dxy, r2_cot=r2_cot)
 
 
+def _render_crypto(ticker: str, renderer) -> None:
+    try:
+        data = fetch_crypto(ticker)
+    except CryptoFetchError as exc:
+        typer.echo(str(exc))
+        return
+    if data.cotacao is None:
+        typer.echo(f"{ticker} — não foi possível obter cotação crypto.")
+        return
+    tetos, r2s = montar_tetos_crypto(data)
+    if _todos_none(tetos):
+        typer.echo(f"{ticker} — cálculo de preço teto não disponível para este ativo.")
+        return
+    renderer.render_crypto(
+        data,
+        tetos,
+        termometro=termometro_margem(data.margem_52),
+        **r2s,
+    )
+
+
 def _render_fii(ticker: str, renderer) -> bool:
     data = fetch_fii(ticker)
     if not data.cotacao:
@@ -175,15 +197,19 @@ def main(
     fii: Annotated[bool, typer.Option("--fii")] = False,
     etfbr: Annotated[bool, typer.Option("--etfbr")] = False,
     usd: Annotated[bool, typer.Option("--usd")] = False,
+    crypto: Annotated[bool, typer.Option("--crypto")] = False,
 ):
     """Consulta preço teto de um ativo (ação BR/US ou FII).
 
     Use 'indices' para ver CDI e IPCA e '--usd' para o painel USD/BRL.
+    Use '--crypto' para spot crypto (ex.: BTC --crypto).
     """
     renderer = _get_renderer(json, plain)
 
-    if sum([etf, fii, etfbr, usd]) > 1:
-        raise typer.BadParameter("Use apenas uma flag entre --etf, --fii, --etfbr e --usd.")
+    if sum([etf, fii, etfbr, usd, crypto]) > 1:
+        raise typer.BadParameter(
+            "Use apenas uma flag entre --etf, --fii, --etfbr, --usd e --crypto."
+        )
 
     if usd:
         _render_usd(renderer)
@@ -196,6 +222,10 @@ def main(
 
     if ticker == "INDICES":
         _indices(json=json, plain=plain)
+        return
+
+    if crypto:
+        _render_crypto(ticker, renderer)
         return
 
     if etfbr:

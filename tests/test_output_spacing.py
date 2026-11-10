@@ -259,3 +259,86 @@ def test_plain_render_usd_rotula_dxy_e_cot_coerentes(capsys):
     assert "Teto DXY (hoje)" in out
     assert "Teto COT (26 sem)" in out
     assert "p25" not in out
+
+
+def _crypto_data(**overrides):
+    base = SimpleNamespace(
+        id="ethereum",
+        symbol="ETH",
+        name="Ethereum",
+        cotacao=3000.0,
+        low_52=2000.0,
+        high_52=4000.0,
+        margem_52=0.5,
+        ath=4800.0,
+        ath_change_pct=-37.5,
+        mcap=3e11,
+        rank=2,
+        circ_supply=1.2e8,
+        max_supply=None,
+        volume_24h=1e10,
+        change_30d=-5.0,
+        change_1y=40.0,
+        btc_dominance_pct=52.0,
+        source="Yahoo Finance",
+    )
+    for k, v in overrides.items():
+        setattr(base, k, v)
+    return base
+
+
+TETOS_CRYPTO = {
+    "teto_margem": 2800.0,
+    "teto_vs_btc": 2900.0,
+    "teto_vs_ouro": 2700.0,
+    "teto_vs_dxy": 2600.0,
+}
+
+
+def test_tabela_render_crypto_mostra_dolar_r2_e_atribuicao(monkeypatch):
+    buf = _console(monkeypatch)
+    tabela.render_crypto(
+        _crypto_data(), TETOS_CRYPTO, termometro="Neutro",
+        r2_btc=0.80, r2_ouro=0.40, r2_dxy=0.20,
+    )
+    texto = buf.getvalue()
+    assert "3000.00" in texto
+    assert "R$ " not in texto
+    assert "R² 0.80" in texto
+    assert "Yahoo Finance" in texto
+    assert "Teto Graham" not in texto
+
+
+def test_tabela_render_crypto_btc_sem_linha_vs_btc(monkeypatch):
+    buf = _console(monkeypatch)
+    tetos = dict(TETOS_CRYPTO)
+    tetos["teto_vs_btc"] = 100.0
+    tabela.render_crypto(
+        _crypto_data(id="bitcoin", symbol="BTC", name="Bitcoin", cotacao=70000.0),
+        tetos,
+        r2_btc=0.99,
+    )
+    texto = buf.getvalue()
+    assert "Teto vs BTC" not in texto
+    assert "$ 70000.00" in texto or "70000.00" in texto
+    assert "R$ 70000" not in texto
+
+
+def test_plain_render_crypto_starts_with_two_blank_lines(capsys):
+    plain.render_crypto(_crypto_data(), TETOS_CRYPTO, r2_btc=0.8, r2_ouro=0.4, r2_dxy=0.2)
+    out = capsys.readouterr().out
+    assert out.startswith("\n\n")
+    assert "Yahoo Finance" in out
+
+
+def test_json_render_crypto_exibe_tetos_e_contexto(capsys):
+    import json as _json
+    from preco_teto.output import json_out
+
+    json_out.render_crypto(_crypto_data(), TETOS_CRYPTO, r2_btc=0.8, r2_ouro=0.4, r2_dxy=0.2)
+    payload = _json.loads(capsys.readouterr().out)
+    assert payload["moeda"] == "USD"
+    assert payload["tetos"]["teto_margem"] == 2800.0
+    assert payload["regressao"]["r2_btc"] == pytest.approx(0.8)
+    assert payload["fonte"] == "Yahoo Finance"
+    assert "price_hist" not in payload

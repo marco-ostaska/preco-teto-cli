@@ -29,6 +29,21 @@ def _teto_row(label: str, valor: float | None, cotacao: float | None) -> tuple:
     return label, f"[red]{fmt}[/red]", f"[red]{pct_str}[/red]", "[red]✗[/red]"
 
 
+def _teto_row_usd(label: str, valor: float | None, cotacao: float | None) -> tuple:
+    """Sempre formata em USD — peer _teto_row, sem branch R$."""
+    if valor is None:
+        return label, "—", "", ""
+    fmt = f"$ {valor:.2f}"
+    if cotacao:
+        pct = (valor - cotacao) / cotacao * 100
+        pct_str = f"{pct:+.2f}%"
+    else:
+        pct_str = ""
+    if cotacao and valor >= cotacao:
+        return label, f"[green]{fmt}[/green]", f"[green]{pct_str}[/green]", "[green]✓[/green]"
+    return label, f"[red]{fmt}[/red]", f"[red]{pct_str}[/red]", "[red]✗[/red]"
+
+
 def _title(ticker, nome, moeda, cotacao):
     prefixo = f"{ticker} - {nome}" if nome else ticker
     return f"{prefixo}  {moeda} {cotacao:.2f}"
@@ -318,6 +333,75 @@ def render_usd(data, tetos: dict, indices, fed=None, r2_dxy=None, r2_cot=None):
         uup_txt = f"{uup_px:.2f} (NAV {uup_nav:.2f})" if uup_px and uup_nav else "—"
         udn_txt = f"{udn_px:.2f} (NAV {udn_nav:.2f})" if udn_px and udn_nav else "—"
         console.print(f"UUP: {uup_txt}   UDN: {udn_txt}")
+
+
+def render_crypto(data, tetos: dict, termometro=None, r2_btc=None, r2_ouro=None, r2_dxy=None):
+    console.print()
+    console.print()
+    symbol = (data.symbol or data.id or "?").upper()
+    titulo = f"{symbol}  $ {data.cotacao:.2f}" if data.cotacao is not None else symbol
+    if getattr(data, "name", None):
+        titulo = f"{symbol} - {data.name}  $ {data.cotacao:.2f}" if data.cotacao is not None else f"{symbol} - {data.name}"
+    t = Table(title=titulo, box=box.SIMPLE_HEAVY)
+    t.add_column("Teto", style="bold")
+    t.add_column("Valor", justify="right")
+    t.add_column("Potencial", justify="right")
+    t.add_column("")
+
+    linhas = [("Teto Margem (52w)", "teto_margem", None)]
+    if data.id != "bitcoin" and tetos.get("teto_vs_btc") is not None:
+        linhas.append((
+            "Teto vs BTC",
+            "teto_vs_btc",
+            f"R² {r2_btc:.2f}" if r2_btc is not None else None,
+        ))
+    if tetos.get("teto_vs_ouro") is not None:
+        linhas.append((
+            "Teto vs Ouro",
+            "teto_vs_ouro",
+            f"R² {r2_ouro:.2f}" if r2_ouro is not None else None,
+        ))
+    if tetos.get("teto_vs_dxy") is not None:
+        linhas.append((
+            "Teto vs DXY",
+            "teto_vs_dxy",
+            f"R² {r2_dxy:.2f}" if r2_dxy is not None else None,
+        ))
+
+    for label, chave, nota in linhas:
+        rotulo, valor_cell, pct_cell, mark = _teto_row_usd(
+            label, tetos.get(chave), data.cotacao
+        )
+        if nota:
+            mark = f"{mark} [dim]{nota}[/dim]" if mark else f"[dim]{nota}[/dim]"
+        t.add_row(rotulo, valor_cell, pct_cell, mark)
+    console.print(t)
+
+    termo = termometro if termometro is not None else termometro_margem(data.margem_52)
+    posicao = f"{data.margem_52 * 100:.0f}%" if data.margem_52 is not None else "—"
+    faixa = (
+        f"$ {data.low_52:.2f}–{data.high_52:.2f}"
+        if data.low_52 is not None and data.high_52 is not None
+        else "—"
+    )
+    console.print(f"Termômetro: {termo}   Posição 52w: {posicao}   Faixa: {faixa}")
+    ath_txt = f"$ {data.ath:.2f}" if data.ath is not None else "—"
+    ath_dd = f" ({data.ath_change_pct:+.1f}%)" if data.ath_change_pct is not None else ""
+    console.print(f"ATH: {ath_txt}{ath_dd}")
+    mcap_txt = f"{data.mcap:,.0f}".replace(",", ".") if data.mcap is not None else "—"
+    rank_txt = str(data.rank) if data.rank is not None else "—"
+    console.print(f"Mcap: $ {mcap_txt}   Rank: {rank_txt}")
+    circ = f"{data.circ_supply:,.0f}".replace(",", ".") if data.circ_supply is not None else "—"
+    max_s = f"{data.max_supply:,.0f}".replace(",", ".") if data.max_supply is not None else "—"
+    console.print(f"Supply circ/max: {circ} / {max_s}")
+    vol = f"{data.volume_24h:,.0f}".replace(",", ".") if data.volume_24h is not None else "—"
+    d30 = f"{data.change_30d:+.1f}%" if data.change_30d is not None else "—"
+    d1y = f"{data.change_1y:+.1f}%" if data.change_1y is not None else "—"
+    console.print(f"Vol 24h: $ {vol}   Δ30d: {d30}   Δ1y: {d1y}")
+    if data.btc_dominance_pct is not None:
+        console.print(f"BTC dominance: {data.btc_dominance_pct:.1f}%")
+    if getattr(data, "source", None):
+        console.print(f"[dim]{data.source}[/dim]")
 
 
 def render_indices(br):

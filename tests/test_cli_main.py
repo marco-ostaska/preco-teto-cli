@@ -374,7 +374,9 @@ def test_cli_etfbr_exclusivo_com_etf():
     result = runner.invoke(app, ["DIVO11", "--etf", "--etfbr"])
 
     assert result.exit_code != 0
-    assert "Use apenas uma flag entre --etf, --fii, --etfbr e --usd." in result.output
+    # Rich pode quebrar a frase em duas linhas do box de erro
+    assert "Use apenas uma flag" in result.output
+    assert "--etf" in result.output and "--crypto" in result.output
 
 
 def test_cli_usd_chama_render_usd(mocker):
@@ -539,3 +541,150 @@ def test_cli_usd_cot_alimenta_teto_pelo_posicionamento_em_26_semanas(mocker):
     assert tetos["teto_cot"] is not None
     assert tetos["teto_cot"] < data.spot_ref
     assert renderer.render_usd.call_args.kwargs["r2_cot"] is not None
+
+
+def _crypto_data(**overrides):
+    idx = pd.bdate_range("2025-01-01", periods=40)
+    price = pd.Series([100.0 + i for i in range(40)], index=idx)
+    btc = pd.Series([90.0 + i for i in range(40)], index=idx)
+    dxy = pd.Series([100.0 + 0.1 * i for i in range(40)], index=idx)
+    gold = pd.Series([2000.0 + i for i in range(40)], index=idx)
+    base = dict(
+        id="ethereum",
+        symbol="ETH",
+        name="Ethereum",
+        cotacao=float(price.iloc[-1]),
+        low_52=float(price.min()),
+        high_52=float(price.max()),
+        margem_52=1.0,
+        ath=200.0,
+        ath_change_pct=-30.0,
+        mcap=1e9,
+        rank=2,
+        circ_supply=1e8,
+        max_supply=None,
+        volume_24h=1e8,
+        change_30d=-5.0,
+        change_1y=10.0,
+        price_hist=price,
+        btc_hist=btc,
+        btc_dominance_pct=50.0,
+        source="Yahoo Finance",
+        dxy=float(dxy.iloc[-1]),
+        dxy_hist=dxy,
+        gold=float(gold.iloc[-1]),
+        gold_hist=gold,
+    )
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def test_cli_crypto_chama_render_crypto(mocker):
+    data = _crypto_data()
+    renderer = mocker.Mock()
+    mocker.patch("preco_teto.cli.fetch_crypto", return_value=data)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["ETH", "--crypto"])
+
+    assert result.exit_code == 0
+    renderer.render_crypto.assert_called_once()
+    tetos = renderer.render_crypto.call_args.args[1]
+    assert "teto_margem" in tetos
+    assert "teto_graham" not in tetos
+    assert "teto_bazin" not in tetos
+    assert tetos["teto_vs_btc"] is not None
+
+
+def test_cli_crypto_btc_omite_teto_vs_btc(mocker):
+    data = _crypto_data(
+        id="bitcoin",
+        symbol="BTC",
+        name="Bitcoin",
+        btc_hist=pd.Series(dtype=float),
+    )
+    renderer = mocker.Mock()
+    mocker.patch("preco_teto.cli.fetch_crypto", return_value=data)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["BTC", "--crypto"])
+
+    assert result.exit_code == 0
+    tetos = renderer.render_crypto.call_args.args[1]
+    assert tetos["teto_vs_btc"] is None
+
+
+def test_cli_crypto_alt_inclui_teto_vs_btc(mocker):
+    idx = pd.bdate_range("2025-01-01", periods=40)
+    btc = pd.Series([100.0 + i for i in range(40)], index=idx)
+    price = btc * 0.05
+    data = _crypto_data(price_hist=price, btc_hist=btc, cotacao=float(price.iloc[-1]))
+    renderer = mocker.Mock()
+    mocker.patch("preco_teto.cli.fetch_crypto", return_value=data)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["ETH", "--crypto"])
+
+    assert result.exit_code == 0
+    tetos = renderer.render_crypto.call_args.args[1]
+    assert tetos["teto_vs_btc"] is not None
+
+
+def test_cli_crypto_exclusivo_com_etf():
+    result = runner.invoke(app, ["BTC", "--crypto", "--etf"])
+    assert result.exit_code != 0
+    assert "--crypto" in result.output
+
+
+def test_cli_crypto_exclusivo_com_usd():
+    result = runner.invoke(app, ["BTC", "--crypto", "--usd"])
+    assert result.exit_code != 0
+    assert "--crypto" in result.output
+
+
+def test_cli_crypto_sem_ticker_pede_ticker():
+    result = runner.invoke(app, ["--crypto"])
+    assert result.exit_code != 0
+    assert "ticker" in result.output.lower()
+
+
+def test_cli_crypto_fetch_error_echo(mocker):
+    from preco_teto.services.crypto import CryptoFetchError
+
+    renderer = mocker.Mock()
+    mocker.patch(
+        "preco_teto.cli.fetch_crypto",
+        side_effect=CryptoFetchError("XYZ — ticker não disponível na API."),
+    )
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["XYZ", "--crypto"])
+
+    assert result.exit_code == 0
+    assert "não disponível" in result.output
+    renderer.render_crypto.assert_not_called()
+
+
+def test_cli_crypto_nao_chama_fetch_acao(mocker):
+    data = _crypto_data(id="bitcoin", symbol="BTC", name="Bitcoin", btc_hist=pd.Series(dtype=float))
+    renderer = mocker.Mock()
+    fetch_acao = mocker.patch("preco_teto.cli.fetch_acao")
+    mocker.patch("preco_teto.cli.fetch_crypto", return_value=data)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["BTC", "--crypto"])
+
+    assert result.exit_code == 0
+    fetch_acao.assert_not_called()
+
+
+def test_cli_crypto_tetos_sem_graham_bazin_dy(mocker):
+    data = _crypto_data(id="bitcoin", symbol="BTC", btc_hist=pd.Series(dtype=float))
+    renderer = mocker.Mock()
+    mocker.patch("preco_teto.cli.fetch_crypto", return_value=data)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    runner.invoke(app, ["BTC", "--crypto"])
+    tetos = renderer.render_crypto.call_args.args[1]
+    for key in ("teto_graham", "teto_bazin", "teto_por_dy", "teto_por_lucro", "teto_dcf"):
+        assert key not in tetos
