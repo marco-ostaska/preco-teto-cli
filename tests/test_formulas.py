@@ -369,3 +369,48 @@ def test_expectativa_por_posicionamento_poucos_pontos_retorna_none():
     alvo = pd.Series([5.0, 5.1, 5.2])
 
     assert expectativa_por_posicionamento(posicao, alvo, spot=5.0) == (None, None)
+
+
+def test_teto_por_multiplo_recupera_preco_constante():
+    import numpy as np
+
+    from preco_teto.formulas import teto_por_multiplo
+
+    idx = pd.bdate_range("2025-01-01", periods=20)
+    # mcap/metric constante = 10 → preço = 10 * metric / supply
+    circ = 1_000_000.0
+    metric = pd.Series(np.linspace(1e6, 2e6, 20), index=idx)
+    price = (10.0 * metric) / circ
+    atual = float(metric.iloc[-1])
+
+    result = teto_por_multiplo(price, metric, atual, circ)
+    assert result == pytest.approx(float(price.iloc[-1]), abs=0.02)
+
+
+def test_teto_por_multiplo_none_se_poucos_pontos():
+    from preco_teto.formulas import teto_por_multiplo
+
+    idx = pd.bdate_range("2025-01-01", periods=10)
+    price = pd.Series([1.0] * 10, index=idx)
+    metric = pd.Series([100.0] * 10, index=idx)
+    assert teto_por_multiplo(price, metric, 100.0, 1_000.0) is None
+
+
+def test_teto_por_multiplo_none_se_metric_zero_ou_negativa():
+    from preco_teto.formulas import teto_por_multiplo
+
+    idx = pd.bdate_range("2025-01-01", periods=20)
+    price = pd.Series([1.0] * 20, index=idx)
+    metric = pd.Series([0.0] * 20, index=idx)
+    assert teto_por_multiplo(price, metric, 0.0, 1_000.0) is None
+    assert teto_por_multiplo(price, pd.Series([100.0] * 20, index=idx), -1.0, 1_000.0) is None
+
+
+def test_teto_por_multiplo_none_se_supply_invalido():
+    from preco_teto.formulas import teto_por_multiplo
+
+    idx = pd.bdate_range("2025-01-01", periods=20)
+    price = pd.Series([1.0] * 20, index=idx)
+    metric = pd.Series([100.0] * 20, index=idx)
+    assert teto_por_multiplo(price, metric, 100.0, None) is None
+    assert teto_por_multiplo(price, metric, 100.0, 0.0) is None

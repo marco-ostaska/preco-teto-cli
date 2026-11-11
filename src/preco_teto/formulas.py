@@ -256,6 +256,50 @@ def expectativa_por_posicionamento(
         return None, None
 
 
+def teto_por_multiplo(
+    price_hist: pd.Series,
+    metric_hist: pd.Series,
+    metric_atual: float | None,
+    circ_supply: float | None,
+    min_pontos: int = 14,
+) -> float | None:
+    """
+    Teto por múltiplo histórico mcap/métrica (fees anualizadas ou TVL).
+    mcap_t ≈ price_t * circ_supply; múltiplo = média geométrica(mcap/metric);
+    teto = múltiplo * metric_atual / circ_supply.
+    """
+    try:
+        if (
+            circ_supply is None
+            or circ_supply <= 0
+            or metric_atual is None
+            or metric_atual <= 0
+            or price_hist is None
+            or metric_hist is None
+            or price_hist.empty
+            or metric_hist.empty
+        ):
+            return None
+        price = price_hist.astype(float)
+        metric = metric_hist.astype(float)
+        base = pd.concat(
+            [price.rename("price"), metric.rename("metric")],
+            axis=1,
+        ).dropna()
+        base = base[base["metric"] > 0]
+        base = base[base["price"] > 0]
+        if len(base) < min_pontos:
+            return None
+        mcap = base["price"] * float(circ_supply)
+        ratios = mcap / base["metric"]
+        if (ratios <= 0).any():
+            return None
+        multiplo = float(np.exp(np.log(ratios).mean()))
+        return round(multiplo * float(metric_atual) / float(circ_supply), 2)
+    except Exception:
+        return None
+
+
 def teto_por_fluxo(
     k_hat: float | None,
     ibov: float | None,

@@ -342,3 +342,32 @@ def test_json_render_crypto_exibe_tetos_e_contexto(capsys):
     assert payload["regressao"]["r2_btc"] == pytest.approx(0.8)
     assert payload["fonte"] == "Yahoo Finance"
     assert "price_hist" not in payload
+    assert "onchain" in payload
+
+
+def test_tabela_render_crypto_mostra_fees_tvl_quando_disponivel(monkeypatch):
+    buf = _console(monkeypatch)
+    tetos = dict(TETOS_CRYPTO)
+    tetos["teto_por_fees"] = 2500.0
+    tetos["teto_por_tvl"] = 2400.0
+    tabela.render_crypto(
+        _crypto_data(
+            fees_30d=1e8,
+            tvl=50e9,
+            rwa_tvl=2e9,
+            dex_vol_24h=3e9,
+            source="Yahoo Finance + DefiLlama",
+        ),
+        tetos,
+        r2_btc=0.8,
+        r2_ouro=0.4,
+        r2_dxy=0.2,
+    )
+    texto = buf.getvalue()
+    assert "Teto por Fees" in texto
+    assert "Teto por TVL" in texto
+    assert "Fees 30d" in texto
+    assert "TVL:" in texto
+    assert "RWA:" in texto
+    assert "DEX vol 24h" in texto
+    assert "DefiLlama" in texto

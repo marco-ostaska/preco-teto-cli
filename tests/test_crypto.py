@@ -108,6 +108,20 @@ def _patch_yf(monkeypatch, crypto_mod, symbols=None, empty_drivers=False):
 
     monkeypatch.setattr(crypto_mod, "_fetch_history", fake_hist)
     monkeypatch.setattr(crypto_mod, "_fetch_yf_meta", fake_meta)
+    monkeypatch.setattr(
+        crypto_mod,
+        "fetch_onchain",
+        lambda gecko_id, symbol: {
+            "onchain_kind": None,
+            "tvl": None,
+            "fees_30d": None,
+            "fees_annualized": None,
+            "rwa_tvl": None,
+            "dex_vol_24h": None,
+            "tvl_hist": pd.Series(dtype=float),
+            "fees_hist": pd.Series(dtype=float),
+        },
+    )
     monkeypatch.delenv("COINGECKO_API_KEY", raising=False)
 
 
@@ -388,3 +402,74 @@ def test_montar_tetos_driver_vazio_none():
     assert tetos["teto_vs_btc"] is None
     assert tetos["teto_vs_ouro"] is None
     assert tetos["teto_vs_dxy"] is None
+
+
+def test_fetch_crypto_anexa_onchain(monkeypatch):
+    from preco_teto.services import crypto
+
+    _patch_yf(monkeypatch, crypto)
+    idx = pd.bdate_range("2025-01-01", periods=20)
+    monkeypatch.setattr(
+        crypto,
+        "fetch_onchain",
+        lambda gecko_id, symbol: {
+            "onchain_kind": "chain",
+            "tvl": 50e9,
+            "fees_30d": 1e8,
+            "fees_annualized": 1.2e9,
+            "rwa_tvl": 2e9,
+            "dex_vol_24h": 3e9,
+            "tvl_hist": pd.Series([40e9 + i * 1e8 for i in range(20)], index=idx),
+            "fees_hist": pd.Series([1e9 + i * 1e6 for i in range(20)], index=idx),
+        },
+    )
+    data = crypto.fetch_crypto("ETH")
+    assert data.onchain_kind == "chain"
+    assert data.tvl == pytest.approx(50e9)
+    assert data.fees_30d == pytest.approx(1e8)
+    assert data.rwa_tvl == pytest.approx(2e9)
+    assert data.dex_vol_24h == pytest.approx(3e9)
+    assert "DefiLlama" in data.source
+
+
+def test_fetch_crypto_defillama_falha_nao_derruba_yf(monkeypatch):
+    from preco_teto.services import crypto
+
+    _patch_yf(monkeypatch, crypto)
+    monkeypatch.setattr(
+        crypto,
+        "fetch_onchain",
+        lambda gecko_id, symbol: (_ for _ in ()).throw(RuntimeError("llama down")),
+    )
+    data = crypto.fetch_crypto("BTC")
+    assert data.cotacao is not None
+    assert data.tvl is None
+    assert "DefiLlama" not in data.source
+
+
+def test_montar_tetos_inclui_fees_e_tvl():
+    from preco_teto.services.crypto import montar_tetos_crypto
+
+    idx = pd.bdate_range("2025-01-01", periods=20)
+    circ = 1_000_000.0
+    fees = pd.Series([1e6 + i * 1e3 for i in range(20)], index=idx)
+    tvl = pd.Series([10e6 + i * 1e4 for i in range(20)], index=idx)
+    # múltiplo mcap/fees = 5 → price = 5 * fees / circ
+    price = (5.0 * fees) / circ
+    data = _crypto_data(
+        price_hist=price,
+        cotacao=float(price.iloc[-1]),
+        circ_supply=circ,
+        fees_hist=fees,
+        fees_annualized=float(fees.iloc[-1]),
+        tvl_hist=tvl,
+        tvl=float(tvl.iloc[-1]),
+        btc_hist=pd.Series(dtype=float),
+        dxy=None,
+        dxy_hist=pd.Series(dtype=float),
+        gold=None,
+        gold_hist=pd.Series(dtype=float),
+    )
+    tetos, _ = montar_tetos_crypto(data)
+    assert tetos["teto_por_fees"] == pytest.approx(float(price.iloc[-1]), abs=0.05)
+    assert tetos["teto_por_tvl"] is not None

@@ -263,6 +263,10 @@ def render_crypto(data, tetos, termometro=None, r2_btc=None, r2_ouro=None, r2_dx
         linhas.append(("Teto vs Ouro", "teto_vs_ouro", r2_ouro))
     if tetos.get("teto_vs_dxy") is not None:
         linhas.append(("Teto vs DXY", "teto_vs_dxy", r2_dxy))
+    if tetos.get("teto_por_fees") is not None:
+        linhas.append(("Teto por Fees", "teto_por_fees", None))
+    if tetos.get("teto_por_tvl") is not None:
+        linhas.append(("Teto por TVL", "teto_por_tvl", None))
     for label, chave, r2 in linhas:
         linha = _linha_teto(label, tetos.get(chave), data.cotacao, False)
         if r2 is not None:
@@ -293,6 +297,21 @@ def render_crypto(data, tetos, termometro=None, r2_btc=None, r2_ouro=None, r2_dx
     print(f"Vol 24h: $ {vol}   Δ30d: {d30}   Δ1y: {d1y}")
     if data.btc_dominance_pct is not None:
         print(f"BTC dominance: {data.btc_dominance_pct:.1f}%")
+    onchain_parts = []
+    fees_30d = getattr(data, "fees_30d", None)
+    if fees_30d is not None:
+        onchain_parts.append(f"Fees 30d: $ {fees_30d:,.0f}".replace(",", "."))
+    tvl = getattr(data, "tvl", None)
+    if tvl is not None:
+        onchain_parts.append(f"TVL: $ {tvl:,.0f}".replace(",", "."))
+    rwa = getattr(data, "rwa_tvl", None)
+    if rwa is not None:
+        onchain_parts.append(f"RWA: $ {rwa:,.0f}".replace(",", "."))
+    dex = getattr(data, "dex_vol_24h", None)
+    if dex is not None:
+        onchain_parts.append(f"DEX vol 24h: $ {dex:,.0f}".replace(",", "."))
+    if onchain_parts:
+        print("   ".join(onchain_parts))
     if getattr(data, "source", None):
         print(data.source)
 

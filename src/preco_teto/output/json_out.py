@@ -178,6 +178,14 @@ def render_crypto(data, tetos, termometro=None, r2_btc=None, r2_ouro=None, r2_dx
             "change_1y": data.change_1y,
             "btc_dominance_pct": data.btc_dominance_pct,
         },
+        "onchain": {
+            "kind": getattr(data, "onchain_kind", None),
+            "tvl": getattr(data, "tvl", None),
+            "fees_30d": getattr(data, "fees_30d", None),
+            "fees_annualized": getattr(data, "fees_annualized", None),
+            "rwa_tvl": getattr(data, "rwa_tvl", None),
+            "dex_vol_24h": getattr(data, "dex_vol_24h", None),
+        },
         "termometro": termo,
         "fonte": getattr(data, "source", None),
     }, indent=2, ensure_ascii=False))
