@@ -1,7 +1,19 @@
 import json
 
 
-def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def _fundamentos_json(fundamentos: dict | None) -> dict | None:
+    if not fundamentos:
+        return None
+    ref = fundamentos.get("ref")
+    balanco = fundamentos.get("balanco")
+    return {
+        "ref": ref.isoformat() if ref else None,
+        "balanco": balanco.isoformat() if balanco else None,
+        "defasado": bool(fundamentos.get("defasado")),
+    }
+
+
+def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None, fundamentos=None):
     print(json.dumps({
         "ticker": ticker,
         "nome": nome,
@@ -18,6 +30,7 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
         "alavancagem": alavancagem,
         "ultimo_dividendo": ultimo_dividendo,
         "mes_ano_dividendo": mes_ano_dividendo,
+        "fundamentos": _fundamentos_json(fundamentos),
         "termometro": termometro,
         "indices": {
             "cdi": getattr(indices, "cdi", None),

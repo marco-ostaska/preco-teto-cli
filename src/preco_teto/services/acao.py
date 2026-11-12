@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timezone
 import pandas as pd
 import yfinance as yf
 from scipy.stats import linregress, trim_mean
@@ -9,6 +9,39 @@ from preco_teto.formulas import classificar_alavancagem
 
 def _is_br(ticker: str) -> bool:
     return ticker[-1].isdigit()
+
+
+LIMITE_DIAS_FUNDAMENTOS = 100
+
+
+def _data_de_timestamp(valor) -> date | None:
+    try:
+        return datetime.fromtimestamp(float(valor), tz=timezone.utc).date()
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+
+
+def _fundamentos(info: dict, hoje: date | None = None) -> dict | None:
+    """Referência do último balanço ingerido pelo Yahoo e flag de defasagem.
+
+    `defasado` fica True quando o Yahoo já registrou a data de divulgação do
+    balanço (earningsTimestamp no passado, depois do fechamento do trimestre)
+    mas ainda devolve fundamentos de um trimestre antigo.
+    """
+    ref = _data_de_timestamp(info.get("mostRecentQuarter"))
+    if ref is None:
+        return None
+
+    hoje = hoje or date.today()
+    balanco = _data_de_timestamp(info.get("earningsTimestamp"))
+    if balanco is not None and balanco > hoje:
+        balanco = None
+    defasado = (
+        balanco is not None
+        and balanco > ref
+        and (hoje - ref).days > LIMITE_DIAS_FUNDAMENTOS
+    )
+    return {"ref": ref, "balanco": balanco, "defasado": defasado}
 
 
 def _get_cotacao(info: dict, history: pd.DataFrame) -> float | None:
@@ -259,6 +292,7 @@ class AcaoData:
     high_52: float | None = None
     ultimo_dividendo: float | None = None
     mes_ano_dividendo: str | None = None
+    fundamentos: dict | None = None
 
 
 def fetch_acao(ticker: str) -> AcaoData:
@@ -338,4 +372,5 @@ def fetch_acao(ticker: str) -> AcaoData:
         high_52=info.get("fiftyTwoWeekHigh") or hist_high_52,
         ultimo_dividendo=ultimo_dividendo,
         mes_ano_dividendo=mes_ano_dividendo,
+        fundamentos=_fundamentos(info),
     )

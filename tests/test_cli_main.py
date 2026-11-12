@@ -40,6 +40,7 @@ def test_cli_render_acao_envia_nome_para_renderer(mocker):
         high_52=60.0,
         ultimo_dividendo=0.30,
         mes_ano_dividendo="Dez/2024",
+        fundamentos={"ref": None, "balanco": None, "defasado": False},
     )
     idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
     renderer = mocker.Mock()
@@ -60,6 +61,11 @@ def test_cli_render_acao_envia_nome_para_renderer(mocker):
     assert "teto_vpa_roe_inflacao" in tetos
     assert renderer.render_acao.call_args.kwargs["ultimo_dividendo"] == 0.30
     assert renderer.render_acao.call_args.kwargs["mes_ano_dividendo"] == "Dez/2024"
+    assert renderer.render_acao.call_args.kwargs["fundamentos"] == {
+        "ref": None,
+        "balanco": None,
+        "defasado": False,
+    }
 
 
 def test_cli_render_fii_inclui_teto_bazin(mocker):

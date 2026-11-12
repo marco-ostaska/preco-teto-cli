@@ -307,6 +307,7 @@ def main(
         },
         ultimo_dividendo=data.ultimo_dividendo,
         mes_ano_dividendo=data.mes_ano_dividendo,
+        fundamentos=getattr(data, "fundamentos", None),
     )
 
 

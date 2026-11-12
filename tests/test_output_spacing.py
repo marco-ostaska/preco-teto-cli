@@ -1,4 +1,5 @@
 import pytest
+from datetime import date
 from types import SimpleNamespace
 
 from preco_teto.output import plain, tabela
@@ -371,3 +372,59 @@ def test_tabela_render_crypto_mostra_fees_tvl_quando_disponivel(monkeypatch):
     assert "RWA:" in texto
     assert "DEX vol 24h" in texto
     assert "DefiLlama" in texto
+
+
+# --- referencia dos fundamentos (dados velhos) ---
+
+FUNDAMENTOS_DEFASADOS = {
+    "ref": date(2026, 6, 30),
+    "balanco": date(2026, 11, 11),
+    "defasado": True,
+}
+
+
+def test_plain_render_acao_imprime_referencia_dos_fundamentos(capsys):
+    plain.render_acao(
+        "BBAS3", 15.66, True, TETOS_ACAO, _indices(), fundamentos=FUNDAMENTOS_DEFASADOS
+    )
+
+    out = capsys.readouterr().out
+    assert "Dados: 2T2026 (30/06/2026)" in out
+    assert "balanço de 11/11/2026" in out
+
+
+def test_tabela_render_acao_imprime_referencia_dos_fundamentos(monkeypatch):
+    buf = _console(monkeypatch)
+
+    tabela.render_acao(
+        "BBAS3", 15.66, True, TETOS_ACAO, _indices(), fundamentos=FUNDAMENTOS_DEFASADOS
+    )
+
+    texto = buf.getvalue()
+    assert "Dados: 2T2026 (30/06/2026)" in texto
+    assert "balanço de 11/11/2026" in texto
+
+
+def test_tabela_render_acao_sem_fundamentos_nao_imprime_linha_dados(monkeypatch):
+    buf = _console(monkeypatch)
+
+    tabela.render_acao("BBAS3", 15.66, True, TETOS_ACAO, _indices())
+
+    assert "Dados:" not in buf.getvalue()
+
+
+def test_json_render_acao_expoe_fundamentos(capsys):
+    import json as _json
+
+    from preco_teto.output import json_out
+
+    json_out.render_acao(
+        "BBAS3", 15.66, True, TETOS_ACAO, _indices(), fundamentos=FUNDAMENTOS_DEFASADOS
+    )
+
+    payload = _json.loads(capsys.readouterr().out)
+    assert payload["fundamentos"] == {
+        "ref": "2026-06-30",
+        "balanco": "2026-11-11",
+        "defasado": True,
+    }

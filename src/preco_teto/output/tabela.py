@@ -11,6 +11,7 @@ from preco_teto.formulas import (
     sinal_cobertura, sinal_p_fcf, sinal_peg, termometro_margem,
 )
 from preco_teto.output.alavancagem import linhas
+from preco_teto.output.fundamentos import linha as linha_fundamentos
 
 console = Console()
 
@@ -76,7 +77,7 @@ def _print_rodape_etfbr(data, indices, termometro=None) -> None:
         console.print("   ".join(linha3))
 
 
-def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None, fundamentos=None):
     moeda = "R$" if is_br else "$"
     console.print()
     console.print()
@@ -120,6 +121,10 @@ def render_acao(ticker, cotacao, is_br, tetos: dict, indices, termometro=None, n
         moeda = "R$" if is_br else "$"
         dy_str = f"   DY: {dividend_yield:.2f}%" if dividend_yield else ""
         console.print(f"Último div: {moeda} {ultimo_dividendo:.2f} ({mes_ano_dividendo}){dy_str}")
+
+    referencia = linha_fundamentos(fundamentos)
+    if referencia:
+        console.print(referencia)
 
 
 def render_fii(ticker, cotacao, tetos: dict, indices, termometro=None, nome=None,

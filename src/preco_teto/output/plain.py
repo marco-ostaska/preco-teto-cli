@@ -1,5 +1,6 @@
 from preco_teto.formulas import sinal_p_fcf, sinal_peg
 from preco_teto.output.alavancagem import linhas
+from preco_teto.output.fundamentos import linha as linha_fundamentos
 
 
 def _fmt(valor, is_br):
@@ -25,7 +26,7 @@ def _linha_teto(label, valor, cotacao, is_br):
     return f"{label:<30} {_fmt(valor, is_br):>12}  {mark:<3} {pct_str:>9}"
 
 
-def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None, fundamentos=None):
     moeda = "R$" if is_br else "$"
     print()
     print()
@@ -62,6 +63,10 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
         moeda = "R$" if is_br else "$"
         dy_str = f"  DY: {dividend_yield:.2f}%" if dividend_yield else ""
         print(f"Último div: {moeda} {ultimo_dividendo:.2f} ({mes_ano_dividendo}){dy_str}")
+
+    referencia = linha_fundamentos(fundamentos)
+    if referencia:
+        print(referencia)
 
 
 def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
