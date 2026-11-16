@@ -104,19 +104,28 @@ def teto_dcf(
     taxa_livre_risco: float,   # em % (ex: 13.75)
     premio_risco: float,       # em % (ex: 5.5 para BR, 5.0 para US)
     inflacao: float,           # em % (ex: 4.8)
-) -> float | None:
+) -> tuple[float | None, float | None]:
     """
     DCF simplificado com dados yfinance.
     taxa_desconto = taxa_livre_risco + beta * premio_risco  (tudo em %)
     crescimento clampado em [-20%, +30%]
+    Devolve (teto, participação do valor terminal no teto). O VT volta junto —
+    mesmo motivo de teto_por_regressao — para o chamador recusar o número
+    quando o modelo não fecha.
     """
     try:
         if any(v is None for v in [free_cashflow, shares_outstanding, beta, earnings_growth]):
-            return None
+            return None, None
+        if shares_outstanding <= 0:
+            return None, None
         fcl_por_acao = free_cashflow / shares_outstanding
+        if fcl_por_acao <= 0:  # peer teto_graham: recusa base negativa
+            return None, None
         g = min(max(earnings_growth, -0.20), 0.30)
         r = (taxa_livre_risco + beta * premio_risco) / 100
         inflacao_dec = inflacao / 100
+        if r <= inflacao_dec:  # sem spread, o Gordon divide por zero ou gera VT negativo
+            return None, None
 
         fluxos = sum(
             fcl_por_acao * (1 + g) ** t / (1 + r) ** t
@@ -126,9 +135,10 @@ def teto_dcf(
         valor_terminal = fcl_ano10 * (1 + inflacao_dec) / (r - inflacao_dec)
         vt_presente = valor_terminal / (1 + r) ** 10
 
-        return round(fluxos + vt_presente, 2)
+        total = fluxos + vt_presente
+        return round(total, 2), round(vt_presente / total, 4)
     except Exception:
-        return None
+        return None, None
 
 
 def teto_margem(cotacao: float | None, low_52: float | None, high_52: float | None) -> float | None:

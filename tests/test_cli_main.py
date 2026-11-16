@@ -68,6 +68,141 @@ def test_cli_render_acao_envia_nome_para_renderer(mocker):
     }
 
 
+def test_cli_suprime_teto_dcf_quando_valor_terminal_fica_fora_da_faixa(mocker):
+    """Caso RADL3/VALE3: g de um trimestre composto por 10 anos deixa o VT em ~12% do teto."""
+    data = SimpleNamespace(
+        ticker="VALE3",
+        nome="Vale S.A.",
+        is_br=True,
+        cotacao=58.20,
+        dividend_rate=3.60,
+        dividend_yield=6.19,
+        dy_medio=24.74,
+        dividendo_medio=3.60,
+        lpa=5.50,
+        vpa=32.00,
+        free_cashflow=15_000_000_000,
+        shares_outstanding=1_300_000_000,
+        beta=0.08,
+        earnings_growth=-0.20,
+        revenue_growth=0.08,
+        roe=17.12,
+        roe_medio_5a=16.0,
+        roe_tendencia=-1.0,
+        roe_r2=0.9,
+        roe_ajustado=15.0,
+        income_net=None,
+        year_prices={},
+        previous_close=57.80,
+        low_52=20.0,
+        high_52=60.0,
+        ultimo_dividendo=0.30,
+        mes_ano_dividendo="Dez/2024",
+        fundamentos={"ref": None, "balanco": None, "defasado": False},
+    )
+    idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_acao", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["VALE3"])
+
+    assert result.exit_code == 0
+    assert renderer.render_acao.call_args.args[3]["teto_dcf"] is None
+
+
+def test_cli_suprime_teto_dcf_quando_teto_destreia_da_cotacao(mocker):
+    """Caso PETR4: o VT (50%) passa na faixa, mas o teto sai 3,44x a cotação."""
+    data = SimpleNamespace(
+        ticker="VALE3",
+        nome="Vale S.A.",
+        is_br=True,
+        cotacao=58.20,
+        dividend_rate=3.60,
+        dividend_yield=6.19,
+        dy_medio=24.74,
+        dividendo_medio=3.60,
+        lpa=5.50,
+        vpa=32.00,
+        free_cashflow=15_000_000_000,
+        shares_outstanding=1_300_000_000,
+        beta=0.08,
+        earnings_growth=0.12,
+        revenue_growth=0.08,
+        roe=17.12,
+        roe_medio_5a=16.0,
+        roe_tendencia=-1.0,
+        roe_r2=0.9,
+        roe_ajustado=15.0,
+        income_net=None,
+        year_prices={},
+        previous_close=57.80,
+        low_52=20.0,
+        high_52=60.0,
+        ultimo_dividendo=0.30,
+        mes_ano_dividendo="Dez/2024",
+        fundamentos={"ref": None, "balanco": None, "defasado": False},
+    )
+    idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_acao", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["VALE3"])
+
+    assert result.exit_code == 0
+    assert renderer.render_acao.call_args.args[3]["teto_dcf"] is None
+
+
+def test_cli_mantem_teto_dcf_quando_diagnostico_consistente(mocker):
+    """Guarda contra supressão excessiva: VT 40% e teto 2,36x a cotação seguem válidos."""
+    data = SimpleNamespace(
+        ticker="VALE3",
+        nome="Vale S.A.",
+        is_br=True,
+        cotacao=58.20,
+        dividend_rate=3.60,
+        dividend_yield=6.19,
+        dy_medio=24.74,
+        dividendo_medio=3.60,
+        lpa=5.50,
+        vpa=32.00,
+        free_cashflow=15_000_000_000,
+        shares_outstanding=1_300_000_000,
+        beta=0.50,
+        earnings_growth=0.10,
+        revenue_growth=0.08,
+        roe=17.12,
+        roe_medio_5a=16.0,
+        roe_tendencia=-1.0,
+        roe_r2=0.9,
+        roe_ajustado=15.0,
+        income_net=None,
+        year_prices={},
+        previous_close=57.80,
+        low_52=20.0,
+        high_52=60.0,
+        ultimo_dividendo=0.30,
+        mes_ano_dividendo="Dez/2024",
+        fundamentos={"ref": None, "balanco": None, "defasado": False},
+    )
+    idx = SimpleNamespace(cdi=14.65, ipca=5.85, melhor_indice=12.45)
+    renderer = mocker.Mock()
+
+    mocker.patch("preco_teto.cli.fetch_acao", return_value=data)
+    mocker.patch("preco_teto.cli.fetch_indices_br", return_value=idx)
+    mocker.patch("preco_teto.cli._get_renderer", return_value=renderer)
+
+    result = runner.invoke(app, ["VALE3"])
+
+    assert result.exit_code == 0
+    assert renderer.render_acao.call_args.args[3]["teto_dcf"] == pytest.approx(137.22, rel=1e-3)
+
+
 def test_cli_render_fii_inclui_teto_bazin(mocker):
     data = SimpleNamespace(
         ticker="HGLG11",

@@ -101,7 +101,7 @@ def test_teto_graham_none_vpa():
 
 
 def test_teto_dcf_complete():
-    result = teto_dcf(
+    result, vt = teto_dcf(
         free_cashflow=1_000_000_000,
         shares_outstanding=500_000_000,
         beta=1.1,
@@ -112,10 +112,11 @@ def test_teto_dcf_complete():
     )
     assert result is not None
     assert result > 0
+    assert 0 < vt < 1
 
 
 def test_teto_dcf_missing_fcl():
-    result = teto_dcf(
+    result, _ = teto_dcf(
         free_cashflow=None,
         shares_outstanding=500_000_000,
         beta=1.1,
@@ -128,7 +129,7 @@ def test_teto_dcf_missing_fcl():
 
 
 def test_teto_dcf_missing_beta():
-    result = teto_dcf(
+    result, _ = teto_dcf(
         free_cashflow=1_000_000_000,
         shares_outstanding=500_000_000,
         beta=None,
@@ -142,16 +143,35 @@ def test_teto_dcf_missing_beta():
 
 def test_teto_dcf_growth_clamp_high():
     """earningsGrowth acima de 30% deve ser clampado a 30%."""
-    r1 = teto_dcf(1e9, 5e8, 1.0, 0.30, 13.75, 5.5, 4.8)
-    r2 = teto_dcf(1e9, 5e8, 1.0, 0.99, 13.75, 5.5, 4.8)
+    r1, _ = teto_dcf(1e9, 5e8, 1.0, 0.30, 13.75, 5.5, 4.8)
+    r2, _ = teto_dcf(1e9, 5e8, 1.0, 0.99, 13.75, 5.5, 4.8)
     assert r1 == pytest.approx(r2, rel=1e-6)
 
 
 def test_teto_dcf_growth_clamp_low():
     """earningsGrowth abaixo de -20% deve ser clampado a -20%."""
-    r1 = teto_dcf(1e9, 5e8, 1.0, -0.20, 13.75, 5.5, 4.8)
-    r2 = teto_dcf(1e9, 5e8, 1.0, -0.99, 13.75, 5.5, 4.8)
+    r1, _ = teto_dcf(1e9, 5e8, 1.0, -0.20, 13.75, 5.5, 4.8)
+    r2, _ = teto_dcf(1e9, 5e8, 1.0, -0.99, 13.75, 5.5, 4.8)
     assert r1 == pytest.approx(r2, rel=1e-6)
+
+
+def test_teto_dcf_recusa_fcl_negativo():
+    """FCL por ação negativo produz teto negativo — recusar a base, como teto_graham faz com LPA."""
+    resultado = teto_dcf(-500_000_000, 500_000_000, 1.1, 0.10, 13.75, 5.5, 4.8)
+    assert resultado == (None, None)
+
+
+def test_teto_dcf_recusa_quando_desconto_nao_supera_inflacao():
+    """Sem r > inflação o Gordon de formulas.py:126 divide por zero ou gera VT negativo."""
+    resultado = teto_dcf(1_000_000_000, 500_000_000, 0.10, 0.10, 1.0, 5.0, 3.1)
+    assert resultado == (None, None)
+
+
+def test_teto_dcf_devolve_participacao_do_valor_terminal():
+    """Caso XOM (beta 0.14, g 0.30): VT responde por 93% do teto — é o que a régua precisa ver."""
+    teto, vt = teto_dcf(6_940_000_000, 1_000_000_000, 0.14, 0.30, 4.12, 5.0, 3.1)
+    assert teto == pytest.approx(3854.30, rel=1e-3)
+    assert vt == pytest.approx(0.9293, abs=1e-3)
 
 
 def test_teto_margem_abaixo_meio():
