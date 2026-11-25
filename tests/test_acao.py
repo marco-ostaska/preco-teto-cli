@@ -212,3 +212,23 @@ def test_ultimo_dividendo_exposto(mock_dividends_3y, mock_yf_info_br, mock_adj_c
     data = fetch_acao("VALE3")
     assert data.ultimo_dividendo == 1.40
     assert data.mes_ano_dividendo == "Dez/2023"
+
+
+@patch("yfinance.Ticker")
+def test_fetch_acao_popula_referencia_dos_fundamentos(
+    mock_cls, mock_yf_info_br, mock_income_stmt, mock_adj_close
+):
+    from datetime import datetime, timezone
+
+    info = dict(mock_yf_info_br)
+    info["mostRecentQuarter"] = datetime(2026, 6, 30, tzinfo=timezone.utc).timestamp()
+    info["earningsTimestamp"] = datetime(2027, 2, 10, 20, tzinfo=timezone.utc).timestamp()
+    mock_cls.return_value = make_ticker_mock(info, mock_income_stmt, mock_adj_close)
+
+    from preco_teto.services.acao import fetch_acao
+
+    data = fetch_acao("BBAS3")
+
+    assert data.fundamentos["ref"].isoformat() == "2026-06-30"
+    assert data.fundamentos["balanco"] is None
+    assert data.fundamentos["defasado"] is False

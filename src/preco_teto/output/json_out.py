@@ -1,7 +1,19 @@
 import json
 
 
-def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def _fundamentos_json(fundamentos: dict | None) -> dict | None:
+    if not fundamentos:
+        return None
+    ref = fundamentos.get("ref")
+    balanco = fundamentos.get("balanco")
+    return {
+        "ref": ref.isoformat() if ref else None,
+        "balanco": balanco.isoformat() if balanco else None,
+        "defasado": bool(fundamentos.get("defasado")),
+    }
+
+
+def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None, fundamentos=None):
     print(json.dumps({
         "ticker": ticker,
         "nome": nome,
@@ -18,6 +30,7 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
         "alavancagem": alavancagem,
         "ultimo_dividendo": ultimo_dividendo,
         "mes_ano_dividendo": mes_ano_dividendo,
+        "fundamentos": _fundamentos_json(fundamentos),
         "termometro": termometro,
         "indices": {
             "cdi": getattr(indices, "cdi", None),
@@ -177,6 +190,14 @@ def render_crypto(data, tetos, termometro=None, r2_btc=None, r2_ouro=None, r2_dx
             "change_30d": data.change_30d,
             "change_1y": data.change_1y,
             "btc_dominance_pct": data.btc_dominance_pct,
+        },
+        "onchain": {
+            "kind": getattr(data, "onchain_kind", None),
+            "tvl": getattr(data, "tvl", None),
+            "fees_30d": getattr(data, "fees_30d", None),
+            "fees_annualized": getattr(data, "fees_annualized", None),
+            "rwa_tvl": getattr(data, "rwa_tvl", None),
+            "dex_vol_24h": getattr(data, "dex_vol_24h", None),
         },
         "termometro": termo,
         "fonte": getattr(data, "source", None),

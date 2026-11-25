@@ -8,13 +8,16 @@ import pandas as pd
 import requests
 import yfinance as yf
 
-from preco_teto.formulas import teto_margem, teto_por_regressao
+from preco_teto.formulas import teto_margem, teto_por_multiplo, teto_por_regressao
+from preco_teto.services.defillama import fetch_onchain
 
 _CG_BASE_DEMO = "https://api.coingecko.com/api/v3"
 _CG_BASE_PRO = "https://pro-api.coingecko.com/api/v3"
 _TIMEOUT = 30
 _SOURCE_YF = "Yahoo Finance"
 _SOURCE_HYBRID = "Yahoo Finance + CoinGecko"
+_SOURCE_YF_LLAMA = "Yahoo Finance + DefiLlama"
+_SOURCE_HYBRID_LLAMA = "Yahoo Finance + CoinGecko + DefiLlama"
 _DXY = "DX-Y.NYB"  # peer usd.py:19
 _GOLD = "GC=F"
 _CG_RETRIES = 3
@@ -51,6 +54,14 @@ class CryptoData:
     dxy_hist: pd.Series
     gold: float | None
     gold_hist: pd.Series
+    onchain_kind: str | None = None
+    tvl: float | None = None
+    fees_30d: float | None = None
+    fees_annualized: float | None = None
+    rwa_tvl: float | None = None
+    dex_vol_24h: float | None = None
+    tvl_hist: pd.Series | None = None
+    fees_hist: pd.Series | None = None
 
 
 def _cg_enabled() -> bool:
@@ -354,6 +365,7 @@ def fetch_crypto(ticker: str) -> CryptoData:
     source = _SOURCE_YF
 
     enrich = _enrich_coingecko(ticker)
+    cg_ok = bool(enrich)
     if enrich:
         source = _SOURCE_HYBRID
         if enrich.get("id"):
@@ -368,6 +380,23 @@ def fetch_crypto(ticker: str) -> CryptoData:
         max_supply = enrich.get("max_supply", max_supply)
         rank = enrich.get("rank")
         btc_dominance_pct = enrich.get("btc_dominance_pct")
+
+    try:
+        onchain = fetch_onchain(coin_id, symbol)
+    except Exception:
+        onchain = {
+            "onchain_kind": None,
+            "tvl": None,
+            "fees_30d": None,
+            "fees_annualized": None,
+            "rwa_tvl": None,
+            "dex_vol_24h": None,
+            "tvl_hist": pd.Series(dtype=float),
+            "fees_hist": pd.Series(dtype=float),
+        }
+    llama_ok = _onchain_useful(onchain)
+    if llama_ok:
+        source = _SOURCE_HYBRID_LLAMA if cg_ok else _SOURCE_YF_LLAMA
 
     return CryptoData(
         id=coin_id,
@@ -394,7 +423,29 @@ def fetch_crypto(ticker: str) -> CryptoData:
         dxy_hist=dxy_hist,
         gold=gold,
         gold_hist=gold_hist,
+        onchain_kind=onchain.get("onchain_kind"),
+        tvl=onchain.get("tvl"),
+        fees_30d=onchain.get("fees_30d"),
+        fees_annualized=onchain.get("fees_annualized"),
+        rwa_tvl=onchain.get("rwa_tvl"),
+        dex_vol_24h=onchain.get("dex_vol_24h"),
+        tvl_hist=onchain.get("tvl_hist"),
+        fees_hist=onchain.get("fees_hist"),
     )
+
+
+def _onchain_useful(onchain: dict) -> bool:
+    """Só atribui DefiLlama se veio métrica útil (não basta kind vazio)."""
+    if not onchain:
+        return False
+    for key in ("tvl", "fees_30d", "fees_annualized", "rwa_tvl", "dex_vol_24h"):
+        if onchain.get(key) is not None:
+            return True
+    for key in ("tvl_hist", "fees_hist"):
+        serie = onchain.get(key)
+        if isinstance(serie, pd.Series) and not serie.empty:
+            return True
+    return False
 
 
 def _is_bitcoin(data: CryptoData) -> bool:
@@ -408,6 +459,8 @@ def montar_tetos_crypto(data: CryptoData) -> tuple[dict, dict]:
         "teto_vs_btc": None,
         "teto_vs_ouro": None,
         "teto_vs_dxy": None,
+        "teto_por_fees": None,
+        "teto_por_tvl": None,
     }
     r2s = {"r2_btc": None, "r2_ouro": None, "r2_dxy": None}
     if not _is_bitcoin(data) and not data.btc_hist.empty and not data.price_hist.empty:
@@ -421,5 +474,26 @@ def montar_tetos_crypto(data: CryptoData) -> tuple[dict, dict]:
     if data.dxy is not None and not data.dxy_hist.empty and not data.price_hist.empty:
         tetos["teto_vs_dxy"], r2s["r2_dxy"] = teto_por_regressao(
             data.dxy_hist, data.price_hist, data.dxy
+        )
+
+    fees_hist = getattr(data, "fees_hist", None)
+    tvl_hist = getattr(data, "tvl_hist", None)
+    if not isinstance(fees_hist, pd.Series):
+        fees_hist = pd.Series(dtype=float)
+    if not isinstance(tvl_hist, pd.Series):
+        tvl_hist = pd.Series(dtype=float)
+    if not fees_hist.empty and not data.price_hist.empty:
+        tetos["teto_por_fees"] = teto_por_multiplo(
+            data.price_hist,
+            fees_hist,
+            getattr(data, "fees_annualized", None),
+            data.circ_supply,
+        )
+    if not tvl_hist.empty and not data.price_hist.empty:
+        tetos["teto_por_tvl"] = teto_por_multiplo(
+            data.price_hist,
+            tvl_hist,
+            getattr(data, "tvl", None),
+            data.circ_supply,
         )
     return tetos, r2s

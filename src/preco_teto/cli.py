@@ -263,6 +263,19 @@ def main(
         premio = 5.0
         inflacao = idx.cpi
 
+    # O DCF só é exibido quando o modelo fecha: valor terminal entre 30% e 85% do
+    # teto e teto entre 1/4 e 3x a cotação. Fora disso o número é artefato de input
+    # cru (g de um trimestre, beta irreal), não leitura do ativo.
+    teto_dcf_valor, teto_dcf_vt = teto_dcf(
+        data.free_cashflow, data.shares_outstanding, data.beta,
+        data.earnings_growth, taxa_livre or 0, premio, inflacao
+    )
+    if teto_dcf_valor is not None and data.cotacao and not (
+        0.30 <= teto_dcf_vt <= 0.85
+        and 0.25 * data.cotacao <= teto_dcf_valor <= 3 * data.cotacao
+    ):
+        teto_dcf_valor = None
+
     tetos = {
         "teto_por_lucro": teto_por_lucro(data.income_net, data.year_prices, data.previous_close or data.cotacao or 0),
         "teto_por_dy": teto_por_dy(data.dividendo_medio, indice_base) if data.dividendo_medio else None,
@@ -270,10 +283,7 @@ def main(
         "teto_graham": teto_graham(data.lpa, data.vpa),
         "teto_vpa_roe_taxa": teto_vpa_roe(data.vpa, data.roe_ajustado, taxa_livre),
         "teto_vpa_roe_inflacao": teto_vpa_roe(data.vpa, data.roe_ajustado, inflacao),
-        "teto_dcf": teto_dcf(
-            data.free_cashflow, data.shares_outstanding, data.beta,
-            data.earnings_growth, taxa_livre or 0, premio, inflacao
-        ),
+        "teto_dcf": teto_dcf_valor,
         "teto_margem": teto_margem(data.cotacao, data.low_52, data.high_52),
     }
 
@@ -307,6 +317,7 @@ def main(
         },
         ultimo_dividendo=data.ultimo_dividendo,
         mes_ano_dividendo=data.mes_ano_dividendo,
+        fundamentos=getattr(data, "fundamentos", None),
     )
 
 

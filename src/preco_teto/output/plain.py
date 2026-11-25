@@ -1,5 +1,6 @@
 from preco_teto.formulas import sinal_p_fcf, sinal_peg
 from preco_teto.output.alavancagem import linhas
+from preco_teto.output.fundamentos import linha as linha_fundamentos
 
 
 def _fmt(valor, is_br):
@@ -25,7 +26,7 @@ def _linha_teto(label, valor, cotacao, is_br):
     return f"{label:<30} {_fmt(valor, is_br):>12}  {mark:<3} {pct_str:>9}"
 
 
-def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None):
+def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=None, dividend_yield=None, dy_medio=None, roe=None, roe_medio_5a=None, roe_tendencia=None, roe_r2=None, roe_ajustado=None, alavancagem=None, ultimo_dividendo=None, mes_ano_dividendo=None, fundamentos=None):
     moeda = "R$" if is_br else "$"
     print()
     print()
@@ -62,6 +63,10 @@ def render_acao(ticker, cotacao, is_br, tetos, indices, termometro=None, nome=No
         moeda = "R$" if is_br else "$"
         dy_str = f"  DY: {dividend_yield:.2f}%" if dividend_yield else ""
         print(f"Último div: {moeda} {ultimo_dividendo:.2f} ({mes_ano_dividendo}){dy_str}")
+
+    referencia = linha_fundamentos(fundamentos)
+    if referencia:
+        print(referencia)
 
 
 def render_fii(ticker, cotacao, tetos, indices, termometro=None, nome=None,
@@ -263,6 +268,10 @@ def render_crypto(data, tetos, termometro=None, r2_btc=None, r2_ouro=None, r2_dx
         linhas.append(("Teto vs Ouro", "teto_vs_ouro", r2_ouro))
     if tetos.get("teto_vs_dxy") is not None:
         linhas.append(("Teto vs DXY", "teto_vs_dxy", r2_dxy))
+    if tetos.get("teto_por_fees") is not None:
+        linhas.append(("Teto por Fees", "teto_por_fees", None))
+    if tetos.get("teto_por_tvl") is not None:
+        linhas.append(("Teto por TVL", "teto_por_tvl", None))
     for label, chave, r2 in linhas:
         linha = _linha_teto(label, tetos.get(chave), data.cotacao, False)
         if r2 is not None:
@@ -293,6 +302,21 @@ def render_crypto(data, tetos, termometro=None, r2_btc=None, r2_ouro=None, r2_dx
     print(f"Vol 24h: $ {vol}   Δ30d: {d30}   Δ1y: {d1y}")
     if data.btc_dominance_pct is not None:
         print(f"BTC dominance: {data.btc_dominance_pct:.1f}%")
+    onchain_parts = []
+    fees_30d = getattr(data, "fees_30d", None)
+    if fees_30d is not None:
+        onchain_parts.append(f"Fees 30d: $ {fees_30d:,.0f}".replace(",", "."))
+    tvl = getattr(data, "tvl", None)
+    if tvl is not None:
+        onchain_parts.append(f"TVL: $ {tvl:,.0f}".replace(",", "."))
+    rwa = getattr(data, "rwa_tvl", None)
+    if rwa is not None:
+        onchain_parts.append(f"RWA: $ {rwa:,.0f}".replace(",", "."))
+    dex = getattr(data, "dex_vol_24h", None)
+    if dex is not None:
+        onchain_parts.append(f"DEX vol 24h: $ {dex:,.0f}".replace(",", "."))
+    if onchain_parts:
+        print("   ".join(onchain_parts))
     if getattr(data, "source", None):
         print(data.source)
 
